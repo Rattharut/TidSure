@@ -27,3 +27,17 @@ export const authLimiter = rateLimit({
     message: 'พยายามเข้าสู่ระบบบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่',
   },
 })
+
+// ---- ครู AI (เซียนเวท) ----
+// อนุญาต 40 ครั้งต่อ 5 นาทีต่อ IP — เด็ก 1 คนถามโต้ตอบได้สบาย
+// แต่กันสคริปต์ยิงรัวจนโควตา Gemini (ที่มีจำกัด) หมดในพริบตา
+export const tutorLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000, // 5 นาที
+  max: 40,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    ok: false,
+    message: 'ถามครู AI ถี่เกินไป พักสักครู่แล้วลองใหม่นะ',
+  },
+})

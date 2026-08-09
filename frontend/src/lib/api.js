@@ -119,4 +119,16 @@ export const statusApi = {
   updateAxes: (radarAxes) => request('/api/status/axes', { method: 'PUT', body: { radarAxes } }),
 }
 
+// =============================================================================
+// ครู AI "เซียนเวท" — อธิบายข้อผิดในโหมดดันเจี้ยน
+// =============================================================================
+// ไม่ต้องล็อกอินก็เรียกได้ (เป็นตัวช่วยเรียนรู้) — request() แนบ token ให้ถ้ามี
+//   context  = ข้อมูลโจทย์ + เฉลย (ให้ AI ยึดเป็นความจริง ไม่มั่ว)
+//   messages = บทสนทนาที่ผ่านมา [{ role: 'user' | 'model', text }]
+// คืน { ok, reply } โดย reply = ข้อความที่ครู AI ตอบกลับ
+export const tutorApi = {
+  ask: (context, messages) =>
+    request('/api/tutor', { method: 'POST', body: { context, messages } }),
+}
+
 export default request

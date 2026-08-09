@@ -19,6 +19,7 @@
 //   questionNumber / totalQuestions  เลขข้อ
 // -----------------------------------------------------------------------------
 import { IconCheck, IconClose, IconArrowRight } from '../icons/index.jsx'
+import AiTutor from './AiTutor.jsx'
 
 const CHOICE_LABELS = ['ก', 'ข', 'ค', 'ง']
 
@@ -121,6 +122,10 @@ export default function QuestionPanel({
                   </p>
                 )}
               </div>
+
+              {/* ครู AI "เซียนเวท" — ต่อยอดจากเฉลยด้านบน ถ้ายังไม่เข้าใจ
+                  key={question.id} = รีเซ็ตบทสนทนาใหม่ทุกครั้งที่เปลี่ยนข้อ */}
+              <AiTutor key={question.id} question={question} selected={selected} />
             </>
           ) : (
             // โหมดห้องสอบ: ไม่เฉลย บอกแค่ว่าบันทึกคำตอบแล้ว
