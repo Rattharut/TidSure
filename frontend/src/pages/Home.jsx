@@ -20,7 +20,7 @@ export default function Home() {
   return (
     <>
       {/* ================= 1) HERO ================= */}
-      <section className="relative flex min-h-[calc(100dvh-64px)] items-center justify-center overflow-hidden px-4">
+      <section className="relative flex min-h-[calc(100svh-64px)] items-center justify-center overflow-hidden px-4">
 
         {/* ภาพพื้นหลัง hero — มุมมองนักผจญภัยเตรียมตัวก่อนออกเดินทาง
             scrim ไล่สีเข้มขึ้นจากบนลงล่าง กันตัวหนังสือทับภาพสว่างจนอ่านไม่ออก */}
