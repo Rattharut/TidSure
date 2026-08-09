@@ -1,0 +1,257 @@
+/* src/index.css
+   ----------------------------------------------------------------------------
+   CSS หลักของทั้งเว็บ (ธีมเกม RPG นีออน) แบ่งเป็น:
+     1) @tailwind 3 บรรทัด = ดึงระบบ Tailwind
+     2) @layer base       = สไตล์พื้นฐาน + พื้นหลังบรรยากาศเกม (ดาว/กริด/วงเวท)
+     3) @layer components = คลาสที่ใช้ซ้ำ เช่น .btn-primary, .card, .chip
+   คุณถนัด CSS อยู่แล้ว ปรับแต่งส่วนนี้ได้อิสระเหมือน CSS ปกติ
+   ---------------------------------------------------------------------------- */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =========================================================================
+   BASE
+   ========================================================================= */
+@layer base {
+  html { scroll-behavior: smooth; }
+
+  body {
+    @apply bg-bg text-ink font-body antialiased;
+    /* พื้นหลังบรรยากาศ: ไล่สีม่วง/ฟ้าจาง ๆ ที่มุมจอ (fixed ให้ติดหน้าจอตอนเลื่อน) */
+    background-image:
+      radial-gradient(60rem 60rem at 15% -10%, rgba(29, 78, 216, 0.18), transparent 60%),
+      radial-gradient(50rem 50rem at 100% 0%, rgba(34, 211, 238, 0.10), transparent 55%),
+      radial-gradient(40rem 40rem at 50% 120%, rgba(244, 63, 94, 0.10), transparent 60%);
+    background-attachment: fixed;
+  }
+
+  h1, h2, h3 { @apply font-heading; }
+
+  /* โฟกัสด้วยคีย์บอร์ดต้องเห็นชัด (accessibility) */
+  :focus-visible {
+    @apply outline-none ring-2 ring-arcane ring-offset-2 ring-offset-bg;
+  }
+
+  /* เคารพผู้ใช้ที่ตั้งค่า "ลดการเคลื่อนไหว" */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* =========================================================================
+   COMPONENTS — คลาสที่ใช้ซ้ำทั่วเว็บ
+   ========================================================================= */
+@layer components {
+
+  /* ---- ปุ่ม ---- */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl
+           bg-arcane px-5 py-3 font-heading font-medium text-white
+           shadow-glow transition-all duration-200
+           hover:bg-arcane2 hover:shadow-glow-lg hover:-translate-y-0.5
+           active:translate-y-0;
+  }
+  /* ปุ่ม CTA สำคัญที่สุด — สไตล์ปุ่มเกม pixel RPG (ทอง #fdd741)
+     กรอบหนา + ขอบมุมหยักแบบพิกเซล + เงาทึบ (ไม่เบลอ) วางไว้หลังปุ่ม
+     กดแล้วปุ่ม "ยุบ" ไปทับเงา ให้ความรู้สึกกดปุ่มจริงแบบเกม 8-bit */
+  .btn-cta {
+    @apply inline-flex items-center justify-center gap-2 rounded-none
+           bg-[#fdd741] px-6 py-3.5 font-heading font-bold text-[#3a2405];
+    border: 3px solid #3a2405;
+    clip-path: polygon(
+      0 4px, 4px 4px, 4px 0,
+      calc(100% - 4px) 0, calc(100% - 4px) 4px, 100% 4px,
+      100% calc(100% - 4px), calc(100% - 4px) calc(100% - 4px), calc(100% - 4px) 100%,
+      4px 100%, 4px calc(100% - 4px), 0 calc(100% - 4px)
+    );
+    box-shadow:
+      inset -3px -3px 0 0 rgba(0, 0, 0, 0.25),
+      inset 3px 3px 0 0 rgba(255, 255, 255, 0.55),
+      6px 6px 0 0 #3a2405;
+    transition: transform 0.1s steps(2), box-shadow 0.1s steps(2), filter 0.15s ease;
+  }
+  .btn-cta:hover {
+    filter: brightness(1.08);
+  }
+  .btn-cta:active {
+    transform: translate(6px, 6px);
+    box-shadow:
+      inset -3px -3px 0 0 rgba(0, 0, 0, 0.25),
+      inset 3px 3px 0 0 rgba(255, 255, 255, 0.55),
+      0 0 0 0 #3a2405;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl
+           border border-border bg-surface/40 px-5 py-3 font-heading text-ink
+           transition-all duration-200 hover:border-arcane hover:text-arcane2;
+  }
+
+  /* ---- การ์ด ---- */
+  .card {
+    @apply rounded-2xl border border-border bg-surface/70 p-6 backdrop-blur-sm;
+  }
+  /* การ์ดที่กดได้ (hover ยกตัว + ขอบเรืองแสง + ยุบลงตอนกด)
+     สำคัญ: ต้องมี active: ด้วย ไม่ใช่แค่ hover:
+     เพราะบนมือถือไม่มี hover เลย ถ้ามีแต่ hover ผู้ใช้จะกดแล้วไม่รู้สึกว่ากดติด
+     active: ทำงานทั้งเมาส์และนิ้ว จึงเป็นตัวที่ให้ feedback จริง ๆ */
+  .card-interactive {
+    @apply card cursor-pointer transition-all duration-200
+           hover:-translate-y-1 hover:border-arcane hover:shadow-glow
+           active:translate-y-0 active:scale-[0.98] active:border-arcane2;
+  }
+
+  /* ---- ป้ายเล็ก (chip/badge) ---- */
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-border
+           bg-elevated px-3 py-1 font-heading text-sm text-ink;
+  }
+
+  /* ---- เส้นกรอบเรืองแสงบาง ๆ รอบกล่อง (ใช้เน้นองค์ประกอบสำคัญ) ---- */
+  .ring-glow {
+    box-shadow: 0 0 0 1px rgba(29, 78, 216, 0.4), 0 0 30px -6px rgba(29, 78, 216, 0.5);
+  }
+
+  /* ---- ตัวอักษรไล่สี (ใช้กับหัวข้อเด่น) ---- */
+  .text-gradient {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(100deg, #3b82f6 0%, #22d3ee 55%, #f43f5e 100%);
+  }
+}
+
+/* =========================================================================
+   UTILITIES เสริม — สำหรับ scroll reveal
+   คู่กับ hook useScrollReveal(): เริ่มต้นซ่อนไว้ (reveal) พอเลื่อนถึงค่อยโชว์ (reveal-in)
+   ========================================================================= */
+@layer utilities {
+  .reveal {
+    opacity: 0;
+    transform: translateY(24px);
+    transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+    will-change: opacity, transform;
+  }
+  .reveal-in {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  /* ผู้ใช้ที่ปิดการเคลื่อนไหว: แสดงเนื้อหาเลย ไม่ต้องรอ animation */
+  @media (prefers-reduced-motion: reduce) {
+    .reveal { opacity: 1; transform: none; transition: none; }
+  }
+}
+
+/* =========================================================================
+   SPRITE ANIMATION — อนิเมชัน pixel art แบบ sprite sheet
+   =========================================================================
+   เขียนเป็น CSS ปกติ ไม่ใช่ Tailwind เพราะต้องคุมค่า background-position
+   ให้ตรงเป๊ะระดับพิกเซล ซึ่ง utility class ทำไม่ได้
+
+   ค่า --sprite-travel และ --sprite-steps ถูกส่งมาจาก MonsterSprite.jsx
+   เพราะแต่ละมอนมีขนาดเฟรมและจำนวนเฟรมไม่เท่ากัน
+   ========================================================================= */
+
+/* ---- ตัวสไปรต์: เลื่อนทีละเฟรม ---- */
+@keyframes spriteFrames {
+  from { background-position: 0 0; }
+  /* เลื่อนไปจนครบทุกเฟรม แล้ววนกลับจุดเริ่มพอดี
+     (ดูคำอธิบายว่าทำไมต้องเลื่อนเท่ากับ "จำนวนเฟรมเต็ม" ใน MonsterSprite.jsx) */
+  to   { background-position: var(--sprite-travel) 0; }
+}
+
+.sprite-frame {
+  animation-name: spriteFrames;
+  animation-iteration-count: infinite;
+  /* animation-duration และ timing-function (steps) ถูกกำหนดจาก inline style
+     เพราะค่าต่างกันตามมอนแต่ละตัว */
+}
+
+/* ---- เงาใต้ตัว: ขยาย/หดสวนทางกับตัว ----
+   ตอนตัวยุบลง เงาแผ่กว้างขึ้น (เหมือนน้ำหนักกดลงพื้น)
+   ตอนตัวยืดขึ้น เงาแคบลง
+   จังหวะนี้ทำให้สมองอ่านว่ามีแรงโน้มถ่วงจริง ไม่ใช่ภาพขยับไปมาเฉย ๆ
+
+   ความแรงของการขยับส่งมาทาง --shadow-punch เพราะมอนแต่ละตัวไม่เท่ากัน
+   สไลม์ไม่มีกระดูก ยุบทั้งตัว เงาจึงขยับเยอะ (1.08)
+   ก็อบลินยืนสองขา หายใจเบา ๆ เงาจึงขยับน้อยกว่า (1.06) */
+@keyframes spriteShadow {
+  0%, 100% { transform: translateX(-50%) scaleX(1); }
+  /* จังหวะยุบสุด: เงาแผ่กว้างตามน้ำหนักที่กดลงพื้น */
+  40%      { transform: translateX(-50%) scaleX(var(--shadow-punch, 1.08)); }
+  /* จังหวะยืดขึ้น: เงาหดเข้า
+     คำนวณจาก punch เพื่อให้อัตราส่วนยืด/หดสมดุลกันเองในทุกตัว
+     (ตัวที่เงาขยับเยอะตอนยุบ ก็ควรหดเยอะตอนยืดด้วย) */
+  80%      { transform: translateX(-50%) scaleX(calc(2 - var(--shadow-punch, 1.08))); }
+}
+
+.sprite-shadow {
+  background: rgba(0, 0, 0, 0.28);
+  filter: blur(3px);
+  animation-name: spriteShadow;
+  animation-iteration-count: infinite;
+  /* เงาใช้ ease-in-out ไม่ใช่ steps เพราะเงาเป็นรูปทรงเรียบ ไม่ใช่ pixel art
+     ถ้าใช้ steps เงาจะกระตุกให้เห็นชัด */
+  animation-timing-function: ease-in-out;
+}
+
+/* ---- สถานะโดนตี: กะพริบแดงสั้น ๆ ----
+   วางโครงไว้ก่อนตามสเปก ยังไม่ได้ต่อกับ logic เกม */
+@keyframes spriteHit {
+  0%, 100% { filter: none; }
+  50%      { filter: brightness(1.6) sepia(1) saturate(6) hue-rotate(-20deg); }
+}
+
+.sprite-hit {
+  animation-name: spriteFrames, spriteHit;
+  animation-duration: inherit, 0.28s;
+  animation-iteration-count: infinite, 1;
+}
+
+/* ผู้ใช้ที่ปิดการเคลื่อนไหว: หยุดที่เฟรมแรก ไม่ต้องขยับ
+   ตัวละครยังแสดงอยู่ครบ แค่ไม่เคลื่อนไหว */
+@media (prefers-reduced-motion: reduce) {
+  .sprite-frame,
+  .sprite-shadow {
+    animation: none;
+    background-position: 0 0;
+  }
+}
+
+/* =========================================================================
+   EFFECT POPUP — ข้อความเอฟเฟกต์ต่อสู้ (เช่น "โดนตี -2 หัวใจ")
+   =========================================================================
+   เด้งขึ้น + ลอยเบา ๆ -> ค้างให้อ่านทัน -> จางหายเอง จบใน 1.6 วินาที
+   ใช้ fill-mode: forwards ให้ค้างที่เฟรมสุดท้าย (opacity 0) หลังจบ
+   ไม่งั้นข้อความจะเด้งกลับมาโชว์อีกรอบ
+
+   วิธีใช้: ใส่ key ที่เปลี่ยนทุกครั้งที่มีเอฟเฟกต์ใหม่ ให้ React สร้าง element ใหม่
+   -> animation เล่นใหม่จากต้นเสมอ แม้ข้อความจะซ้ำของเดิม */
+@keyframes effectPop {
+  0%   { opacity: 0; transform: translateY(8px) scale(0.9); }
+  15%  { opacity: 1; transform: translateY(0) scale(1); }   /* เด้งขึ้นเต็มที่ */
+  70%  { opacity: 1; transform: translateY(-2px); }          /* ค้างให้อ่าน */
+  100% { opacity: 0; transform: translateY(-10px); }         /* ลอยขึ้นแล้วจางหาย */
+}
+.effect-pop {
+  animation: effectPop 1.6s ease-out forwards;
+}
+/* ผู้ใช้ที่ปิดการเคลื่อนไหว: ปิด animation ไปเลย แสดงข้อความค้างไว้เฉย ๆ
+   (การซ่อนปล่อยให้ JS timer ใน BattleStage จัดการ จึงยังหายเองใน 1.6 วิ)
+
+   *** จำเป็นต้อง animation: none !important ***
+   เพราะ base rule ของเว็บบังคับ animation-duration: 0.001ms กับทุก element
+   ถ้าไม่ปิด animation ที่นี่ effectPop จะกระโดดไปเฟรมสุดท้าย (opacity 0) ทันที
+   = ผู้ใช้กลุ่มนี้จะไม่เห็นข้อความเลย
+   .effect-pop มี specificity สูงกว่า * จึงชนะ base rule ได้ */
+@media (prefers-reduced-motion: reduce) {
+  .effect-pop {
+    animation: none !important;
+    opacity: 1;
+    transform: none;
+  }
+}

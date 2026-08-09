@@ -1,0 +1,26 @@
+{
+  "name": "tidsure-backend",
+  "version": "0.1.0",
+  "description": "TidSure (ติดชัว) - โครง API ฝั่งเซิร์ฟเวอร์ (Node.js + Express + MongoDB) [ยังเป็นโครงเปล่า]",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "nodemon src/server.js",
+    "start": "node src/server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "express-rate-limit": "^8.6.2",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^8.7.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.7"
+  }
+}

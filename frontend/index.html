@@ -1,0 +1,41 @@
+<!doctype html>
+<!--
+  index.html — ไฟล์ HTML ตั้งต้นของแอป (Vite จะใช้ไฟล์นี้เป็นจุดเข้า)
+  หน้าที่หลัก:
+    1) โหลดฟอนต์จาก Google Fonts (Orbitron / Kanit / Sarabun)
+    2) มี <div id="root"></div> ให้ React นำ UI ทั้งหมดมาวาดลงไป
+    3) โหลดไฟล์ src/main.jsx ซึ่งเป็นจุดเริ่มของฝั่ง JavaScript/React
+-->
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- viewport: ทำให้เว็บย่อ/ขยายตามหน้าจอมือถือได้ถูกต้อง (ห้ามปิด zoom) -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="TidSure (ติดชัว) - ฝึกทำข้อสอบเข้ามหาวิทยาลัยแนวเกม RPG" />
+    <title>TidSure • ติดชัว</title>
+
+    <!-- โหลดฟอนต์: preconnect ช่วยให้เชื่อมต่อ Google Fonts ไวขึ้น -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!--
+      Orbitron       = ฟอนต์สไตล์เกม (อังกฤษ) สำหรับชื่อ TidSure และคำเน้น
+      Kanit          = หัวข้อภาษาไทย
+      Sarabun        = เนื้อความภาษาไทย (อ่านง่าย)
+      Press Start 2P = ฟอนต์ pixel แท้ ๆ ใช้กับ HUD ในเกม (HP, ตัวเลขหัวใจ)
+                       ฟอนต์นี้มีน้ำหนักเดียวและไม่มีตัวอักษรไทย
+                       จึงใช้เฉพาะตัวเลขกับอังกฤษสั้น ๆ เท่านั้น ห้ามเอาไปใช้กับข้อความยาว
+      display=swap = แสดงข้อความด้วยฟอนต์สำรองก่อน แล้วค่อยสลับเมื่อฟอนต์โหลดเสร็จ (กันข้อความหาย)
+    -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Kanit:wght@400;500;600;700&family=Sarabun:wght@300;400;500;600&family=Press+Start+2P&display=swap"
+      rel="stylesheet" 
+    />
+  </head>
+  <body>
+    <!-- React จะวาด UI ทั้งหมดลงในกล่องนี้ -->
+    <div id="root"></div>
+
+    <!-- จุดเริ่มของโค้ดฝั่ง React (type="module" = ใช้ระบบ import/export สมัยใหม่) -->
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
