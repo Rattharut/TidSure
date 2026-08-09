@@ -37,13 +37,14 @@ const ORDER = [SKILL_DAMAGE_BOOST, SKILL_MOODENG, SKILL_FIFTY_FIFTY]
 // คีย์จำสถานะพับ/กางใน localStorage
 const OPEN_KEY = 'tidsure_skillbar_open'
 
-// อ่านค่าที่จำไว้ — ค่าเริ่มต้นคือ "กาง" เพื่อให้คนเล่นครั้งแรกเห็นว่ามีสกิลอยู่
-// (ถ้าเริ่มด้วยพับ ผู้เล่นใหม่จะไม่รู้เลยว่าใช้สกิลได้)
+// อ่านค่าที่จำไว้ — ค่าเริ่มต้นคือ "พับ" ให้ผู้เล่นกดกางออกเอง (โจทย์ไม่โดนดันตกจอ)
+// หัวแถบที่พับอยู่ยังโชว์ไอคอนสกิล + จำนวนที่พร้อมใช้ ผู้เล่นจึงยังรู้ว่ามีสกิลให้กาง
+// ถ้าผู้เล่นเคยกดกางไว้ ('true') ก็จำค่านั้น ไม่บังคับพับซ้ำทุกด่าน
 function readOpen() {
   try {
-    return localStorage.getItem(OPEN_KEY) !== 'false'
+    return localStorage.getItem(OPEN_KEY) === 'true'
   } catch {
-    return true
+    return false
   }
 }
 
