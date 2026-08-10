@@ -138,6 +138,7 @@ export default function TimedMode({ choices, onExit }) {
         EnemyIcon={IconDragon}
         enemySprite="dragon"
         enemyTone="rose"
+        heroScale={0.58}
         effect={describeSwing(run.lastEvent)}
         // questionIndex เปลี่ยนทุกข้อ = ทุกครั้งที่เกิดการปะทะใหม่ -> ข้อความเด้งใหม่
         effectKey={run.questionIndex}

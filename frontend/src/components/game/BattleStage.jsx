@@ -64,6 +64,10 @@ export default function BattleStage({
   // ชื่อสไปรต์ "เพื่อนคู่ใจ" ที่ยืนข้างผู้เล่น (เช่น 'moodeng')
   // null = ไม่มีเพื่อน (ยังไม่ปลดล็อก หรือเป็นโหมดที่ไม่มีสกิล)
   companion = null,
+  // ตัวคูณขนาดฮีโร่ (1 = ขนาดปกติ) — ใช้ย่อฮีโร่เฉพาะบางโหมด
+  // เช่นโหมดจำกัดเวลาที่สู้กับมังกรตัวยักษ์ ย่อฮีโร่ลงให้ดูเหมือน "คนตัวเล็กสู้มังกร"
+  // โหมดดันเจี้ยนไม่ส่งค่านี้ -> ฮีโร่ขนาดเท่าเดิม (สมส่วนกับมอนปกติ)
+  heroScale = 1,
 }) {
   const bg = BACKGROUND_BY_DIFFICULTY[difficulty] || BACKGROUND_BY_DIFFICULTY['ปานกลาง']
 
@@ -95,7 +99,7 @@ export default function BattleStage({
           <div className="relative flex items-end justify-center" style={{ height: CHAR_BOX_H }}>
             {/* ฮีโร่ท่ารบ — สไปรต์ pixel art จริง (แทนกล่อง placeholder เดิม)
                 ขนาดคุมด้วย stageHeight เหมือนมอน เพื่อให้ยืนสมส่วนกัน */}
-            <MonsterSprite name="hero" scale={getStageScale('hero')} />
+            <MonsterSprite name="hero" scale={getStageScale('hero') * heroScale} />
             {/* ให้โปรแกรมอ่านหน้าจอรู้ว่านี่คือฝ่ายผู้เล่น (สไปรต์ตั้ง aria-hidden) */}
             <span className="sr-only">ตัวละครเอก นักผจญภัย</span>
 
