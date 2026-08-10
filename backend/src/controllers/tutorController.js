@@ -13,8 +13,15 @@
 // ไม่ต้องลง library เพิ่ม: Node 20+ มี fetch ให้ในตัวอยู่แล้ว
 // -----------------------------------------------------------------------------
 
-// รุ่นที่ใช้ — flash = เร็ว + อยู่ในโควตาฟรี (ตั้ง GEMINI_MODEL ใน env เพื่อเปลี่ยนได้)
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash'
+// รุ่นที่จะลองใช้ตามลำดับ — บางบัญชี/บางโปรเจกต์ไม่มีโควตาฟรีของบางรุ่น
+// จึงลองไล่ไปเรื่อย ๆ จนเจอรุ่นที่ตอบได้ (รุ่นแรกที่ตั้งใน env จะถูกลองก่อน)
+const MODEL_CANDIDATES = [
+  process.env.GEMINI_MODEL, // ถ้าตั้ง env ไว้ ลองอันนี้ก่อน
+  'gemini-2.5-flash',
+  'gemini-2.0-flash',
+  'gemini-2.5-flash-lite',
+  'gemini-flash-latest',
+].filter(Boolean).filter((m, i, a) => a.indexOf(m) === i) // ตัดค่าซ้ำ
 
 const geminiUrl = (model, key) =>
   `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`
@@ -90,35 +97,38 @@ export async function askTutor(req, res, next) {
       generationConfig: { temperature: 0.7, maxOutputTokens: 600 },
     }
 
-    const resp = await fetch(geminiUrl(GEMINI_MODEL, key), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
+    // ลองไล่ทีละรุ่นจนกว่าจะมีรุ่นไหนตอบได้
+    const tried = []
+    for (const model of MODEL_CANDIDATES) {
+      const resp = await fetch(geminiUrl(model, key), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
 
-    if (!resp.ok) {
+      if (resp.ok) {
+        const data = await resp.json()
+        const reply = data?.candidates?.[0]?.content?.parts
+          ?.map((p) => p.text || '')
+          .join('')
+          .trim()
+        if (reply) return res.json({ ok: true, reply, model })
+        tried.push(`${model}: ตอบว่าง`)
+        continue
+      }
+
       const detail = await resp.text().catch(() => '')
-      console.error('Gemini ตอบ error:', resp.status, detail)
-      const e = new Error('ครู AI ไม่ว่างชั่วคราว ลองใหม่อีกครั้ง หรือดูเฉลยด้านบนก่อนนะ')
-      e.status = 502
-      // DEBUG ชั่วคราว: แนบสถานะ+ข้อความจาก Google เพื่อหาสาเหตุ (จะเอาออกทีหลัง)
-      e.debug = `gemini ${resp.status}: ${detail.slice(0, 300)}`
-      throw e
+      console.error(`Gemini (${model}) error:`, resp.status, detail)
+      tried.push(`${model}: ${resp.status} ${detail.slice(0, 120)}`)
+      // 429/404 = รุ่นนี้ไม่มีโควตา/ไม่มีรุ่น -> ลองรุ่นถัดไป
+      // error อื่น (เช่น 400 key ผิด) ก็ลองรุ่นถัดไปเผื่อได้ แล้วค่อยสรุปตอนจบ
     }
 
-    const data = await resp.json()
-    const reply = data?.candidates?.[0]?.content?.parts
-      ?.map((p) => p.text || '')
-      .join('')
-      .trim()
-
-    if (!reply) {
-      const e = new Error('ครู AI ตอบไม่ได้ในตอนนี้ ลองถามใหม่อีกครั้งนะ')
-      e.status = 502
-      throw e
-    }
-
-    res.json({ ok: true, reply })
+    // ลองครบทุกรุ่นแล้วยังไม่ได้
+    const e = new Error('ครู AI ไม่ว่างชั่วคราว ลองใหม่อีกครั้ง หรือดูเฉลยด้านบนก่อนนะ')
+    e.status = 502
+    e.debug = tried.join(' | ') // DEBUG ชั่วคราว จะเอาออกทีหลัง
+    throw e
   } catch (err) {
     next(err) // ส่งต่อให้ errorHandler ตอบ JSON รูปแบบเดียวกับ API อื่น
   }
