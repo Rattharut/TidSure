@@ -48,9 +48,8 @@ export default function Home() {
             />
           </h1>
 
-          <blockquote className="mx-auto mt-6 max-w-2xl animate-fade-up text-left font-body text-lg leading-relaxed text-muted" style={{ animationDelay: '120ms' }}>
-            ในทุกคำถามจะมีคนอยู่ 2 แบบเสมอ หนึ่งคือคนที่ชนะ
-            และสองคือคนที่ได้เรียนรู้
+          <blockquote className="mx-auto mt-6 max-w-xl animate-fade-up text-center font-body text-lg leading-relaxed text-muted [text-wrap:balance]" style={{ animationDelay: '120ms' }}>
+            ในทุกคำถามจะมีคนอยู่ 2 แบบเสมอ หนึ่งคือคนที่ชนะ และสองคือคนที่ได้เรียนรู้
           </blockquote>
 
           <div className="mt-10 flex animate-fade-up flex-col items-center justify-center gap-3 sm:flex-row" style={{ animationDelay: '240ms' }}>
