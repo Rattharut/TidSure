@@ -44,7 +44,7 @@ export default function Home() {
               alt="Quest Begins"
               loading="eager"
               decoding="async"
-              className="mx-auto w-64 max-w-full drop-shadow-[0_4px_16px_rgba(0,0,0,0.45)] sm:w-80 lg:w-[28rem]"
+              className="mx-auto w-72 max-w-full drop-shadow-[0_4px_16px_rgba(0,0,0,0.45)] sm:w-96 lg:w-[34rem]"
             />
           </h1>
 
