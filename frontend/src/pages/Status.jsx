@@ -560,6 +560,23 @@ function RadarChart({ axisData }) {
           />
         )
       })}
+
+      {/* จุดยอดของแต่ละแกนที่มีค่าพลัง (>0)
+          สำคัญตอนเล่นวิชาเดียว: เส้นรอบรูปจะแบนจนมองไม่เห็น จุดนี้ทำให้ยังเห็นค่าชัด
+          ระบายสีตามระดับความยากของวิชานั้น + แสงเรืองแบบเดียวกับเส้น */}
+      {axisData.map((a, i) => {
+        if (a.value <= 0) return null
+        const [cx, cy] = dataPoints[i]
+        return (
+          <circle
+            key={`dot-${a.id}`}
+            cx={cx} cy={cy} r="4.5"
+            fill={a.theme.solid}
+            stroke="#0b0b18" strokeWidth="1.5"
+            filter={`url(#glow-${i})`}
+          />
+        )
+      })}
     </svg>
   )
 }
