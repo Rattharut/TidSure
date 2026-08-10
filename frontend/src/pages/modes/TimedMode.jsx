@@ -143,18 +143,12 @@ export default function TimedMode({ choices, onExit }) {
         // questionIndex เปลี่ยนทุกข้อ = ทุกครั้งที่เกิดการปะทะใหม่ -> ข้อความเด้งใหม่
         effectKey={run.questionIndex}
         heroSlot={
-          // หัวใจสีทอง 1 ดวง + ป้ายบอกว่าอมตะ (หัวใจไม่ลด มีไว้โชว์)
-          <div className="flex flex-col items-center gap-1">
-            <HeartBar current={run.player.hearts} max={run.player.maxHearts} tone="gold" srLabel="ผู้เล่น" />
-            <span className="chip text-[10px] text-gold">อมตะ</span>
-          </div>
+          // หัวใจสีทอง — สื่อสถานะอมตะด้วยสีหัวใจอย่างเดียว (ไม่มีป้ายข้อความแล้ว)
+          <HeartBar current={run.player.hearts} max={run.player.maxHearts} tone="gold" srLabel="ผู้เล่น" />
         }
         enemySlot={
-          // มังกรก็อมตะเหมือนกัน หัวใจไม่ลด
-          <div className="flex flex-col items-center gap-1">
-            <HeartBar current={run.boss.hearts} max={run.boss.maxHearts} tone="danger" srLabel="มังกร" />
-            <span className="chip text-[10px] text-danger">อมตะ</span>
-          </div>
+          // หัวใจแดงดำ — สื่อว่าเป็นมังกรบอส (ไม่มีป้าย "อมตะ" แล้ว)
+          <HeartBar current={run.boss.hearts} max={run.boss.maxHearts} tone="dragon" srLabel="มังกร" />
         }
       />
 

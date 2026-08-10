@@ -29,6 +29,8 @@ const TONES = {
   rose:   'text-rose',
   gold:   'text-gold',
   danger: 'text-danger',
+  // แดงดำ — หัวใจของมังกร (บอสโหมดจำกัดเวลา) แดงเข้มหม่นเลือด ดูดุน่าเกรงขาม
+  dragon: 'text-[#8f1414]',
 }
 
 export default function HeartBar({ current, max, tone = 'rose', srLabel }) {
