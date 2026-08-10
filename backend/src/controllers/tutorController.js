@@ -132,6 +132,7 @@ export async function askTutor(req, res, next) {
     // ลองครบทุกรุ่นแล้วยังไม่ได้ (รายละเอียดอยู่ใน log ของเซิร์ฟเวอร์)
     console.error('Gemini ใช้ไม่ได้ทุกรุ่น:', tried.join(' | '))
     const e = new Error('ครู AI ไม่ว่างชั่วคราว ลองใหม่อีกครั้ง หรือดูเฉลยด้านบนก่อนนะ')
+    e.debug = tried.join(' | ') // DEBUG ชั่วคราว จะเอาออกทีหลัง
     e.status = 502
     throw e
   } catch (err) {
