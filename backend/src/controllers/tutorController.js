@@ -96,10 +96,9 @@ export async function askTutor(req, res, next) {
       contents,
       generationConfig: {
         temperature: 0.7,
-        maxOutputTokens: 1024,
-        // ปิด "การคิด" (thinking) ของรุ่น 2.5 — ไม่งั้นมันกินโควตา token
-        // จนคำตอบจริงถูกตัดกลางประโยค (บั๊กที่เจอ) + ตอบไวขึ้นด้วย
-        thinkingConfig: { thinkingBudget: 0 },
+        // เพดานสูงพอให้ "ส่วนคิด" (thinking) ของรุ่น 2.5 + คำตอบจริงอยู่ครบ
+        // ไม่โดนตัดกลางประโยค (รุ่น flash-latest ปิด thinking ไม่ได้ จึงต้องเผื่อที่)
+        maxOutputTokens: 2048,
       },
     }
 
