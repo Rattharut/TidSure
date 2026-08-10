@@ -123,7 +123,7 @@ export default function QuestionPanel({
                 )}
               </div>
 
-              {/* ครู AI "เซียนเวท" — ต่อยอดจากเฉลยด้านบน ถ้ายังไม่เข้าใจ
+              {/* ครู AI "จอมปราชญ์" — ต่อยอดจากเฉลยด้านบน ถ้ายังไม่เข้าใจ
                   key={question.id} = รีเซ็ตบทสนทนาใหม่ทุกครั้งที่เปลี่ยนข้อ */}
               <AiTutor key={question.id} question={question} selected={selected} />
             </>

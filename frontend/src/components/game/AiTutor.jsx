@@ -1,6 +1,6 @@
 // src/components/game/AiTutor.jsx
 // -----------------------------------------------------------------------------
-// "เซียนเวท" — ครู AI ที่โผล่ใต้เฉลย (เฉพาะโหมดดันเจี้ยน = โหมดฝึก)
+// "จอมปราชญ์" — ครู AI ที่โผล่ใต้เฉลย (เฉพาะโหมดดันเจี้ยน = โหมดฝึก)
 //
 // การทำงาน:
 //   • เริ่มแบบ "พับ" — โชว์แค่ปุ่ม "ถามครู AI" (ไม่เรียก AI จนกว่าจะกด = ประหยัดโควตา)
@@ -89,7 +89,7 @@ export default function AiTutor({ question, selected }) {
     )
   }
 
-  // ---- กางแล้ว: กล่องแชทเซียนเวท ----
+  // ---- กางแล้ว: กล่องแชทจอมปราชญ์ ----
   return (
     <div className="mt-3 rounded-xl border border-arcane/40 bg-arcane/5 p-3">
       {/* หัวกล่อง: ตัวละครครู */}
@@ -98,7 +98,7 @@ export default function AiTutor({ question, selected }) {
           <IconBrain className="h-5 w-5 text-arcane2" />
         </span>
         <div className="leading-tight">
-          <p className="font-heading text-sm text-ink">เซียนเวท (ครู AI)</p>
+          <p className="font-heading text-sm text-ink">จอมปราชญ์ (ครู AI)</p>
           <p className="text-[11px] text-muted">ถามได้เรื่อย ๆ จนกว่าจะเข้าใจ</p>
         </div>
       </div>
@@ -125,7 +125,7 @@ export default function AiTutor({ question, selected }) {
         {loading && (
           <div className="flex justify-start">
             <p className="rounded-2xl rounded-tl-sm bg-elevated px-3 py-2 text-sm text-muted">
-              เซียนเวทกำลังคิด…
+              จอมปราชญ์กำลังคิด…
             </p>
           </div>
         )}

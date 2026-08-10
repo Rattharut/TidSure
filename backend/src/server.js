@@ -59,7 +59,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes)     // สมัคร/เข้าสู่ระบบ
 app.use('/api/quiz', quizRoutes)     // ดึงข้อสอบ/ส่งคำตอบ
 app.use('/api/status', statusRoutes) // ค่าพลังผู้เล่น (กราฟเรดาร์)
-app.use('/api/tutor', tutorRoutes)   // ครู AI "เซียนเวท" (อธิบายข้อผิด)
+app.use('/api/tutor', tutorRoutes)   // ครู AI "จอมปราชญ์" (อธิบายข้อผิด)
 
 // ---- ตัวจัดการ error รวม (ต้องอยู่ท้ายสุด หลังทุก route) ----------------------
 app.use(errorHandler)
