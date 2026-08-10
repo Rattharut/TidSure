@@ -18,7 +18,7 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { authApi, getToken, setToken, clearToken } from '../lib/api.js'
 import { syncFromUser, resetProgress } from '../lib/progress.js'
-import { resetDungeonClears } from '../lib/playerStats.js'
+import { resetDungeonClears, syncDungeonClearsFromUser } from '../lib/playerStats.js'
 
 // สร้างกล่อง Context
 const AuthContext = createContext(null)
@@ -48,6 +48,7 @@ export function AuthProvider({ children }) {
       .then((data) => {
         setUser(data.user)
         syncFromUser(data.user)   // เอาสกิลที่ปลดล็อกจาก backend มาใส่ cache
+        syncDungeonClearsFromUser(data.user) // ตั้งตัวนับเลเวล/มังกรให้ตรงบัญชี
       })
       .catch(() => {
         // token หมดอายุ/ปลอม -> ล้างทิ้ง
@@ -63,6 +64,7 @@ export function AuthProvider({ children }) {
     setToken(data.token)   // เก็บบัตรผ่านไว้ใน localStorage
     setUser(data.user)
     syncFromUser(data.user) // โหลดสกิลที่เคยปลดล็อกไว้ของบัญชีนี้
+    syncDungeonClearsFromUser(data.user) // ตั้งตัวนับเลเวล/มังกรให้ตรงบัญชี
     setIsGuest(false)
     return data.user
   }
@@ -73,6 +75,7 @@ export function AuthProvider({ children }) {
     setToken(data.token)
     setUser(data.user)
     syncFromUser(data.user) // บัญชีใหม่ยังไม่มีสกิลอะไร -> cache ว่าง
+    syncDungeonClearsFromUser(data.user) // ตั้งตัวนับให้ตรง (บัญชีใหม่ = 0 หรือค่า guest ที่มากกว่า)
     setIsGuest(false)
     return data.user
   }

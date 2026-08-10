@@ -33,6 +33,9 @@ function toPublicUser(user) {
     displayName: user.displayName,
     // สกิลที่ปลดล็อกแล้ว — ฝั่งเว็บใช้ตัดสินว่าสกิลไหนกดใช้ได้ในโหมดดันเจี้ยน
     unlockedSkills: user.unlockedSkills || [],
+    // จำนวนเคลียร์ดัน (เลเวล/มังกร) — ฝั่งเว็บเอาไปตั้งตัวนับในเครื่องให้ตรงตั้งแต่ login
+    // (ไม่งั้นเครื่องเริ่มที่ 0 แล้วชนะดันจะโดน $max ฝั่ง server กลืนจนกว่าจะไล่ทันเลขเดิม)
+    dungeonClears: user.dungeonClears || 0,
   }
   // หมายเหตุ: เคยมี field "stats" ตรงนี้ แต่ถูกถอดออกแล้ว
   // เพราะค่าพลังรายวิชาไม่ได้เก็บที่ User อีกต่อไป — คำนวณสดจาก collection Result

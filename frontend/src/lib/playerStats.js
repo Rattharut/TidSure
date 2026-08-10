@@ -196,6 +196,13 @@ export function resetDungeonClears() {
   }
 }
 
+// ตั้งตัวนับในเครื่องให้ตรงกับบัญชีตอน login/เปิดเว็บใหม่
+// เอาค่าที่มากกว่าระหว่าง "ของในเครื่อง" กับ "ของบัญชี" (เผื่อเล่นเป็น guest ไว้ก่อนล็อกอิน)
+// สำคัญ: ทำให้เครื่องไม่เริ่มที่ 0 -> ชนะดันครั้งแรกหลัง login จะนับขึ้นทันที ไม่โดน $max กลืน
+export function syncDungeonClearsFromUser(user) {
+  writeClears(Math.max(readClears(), user?.dungeonClears || 0))
+}
+
 // เรียกทุกครั้งที่ผู้เล่นชนะดันเจี้ยน -> เลเวล +1 + สังหารมังกร +1
 // นับใน "เครื่องทันที" (ไม่มีวันช้า/หาย) แล้วถ้า login ค่อย sync ยอดล่าสุดขึ้น backend
 export async function recordDungeonClear() {
