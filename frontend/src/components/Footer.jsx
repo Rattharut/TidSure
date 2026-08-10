@@ -17,7 +17,7 @@ import { Link } from 'react-router-dom'
 import { IconMail, IconSword, IconChart } from './icons/index.jsx'
 
 // อีเมลติดต่อ — ประกาศไว้ที่เดียว ใช้ทั้งข้อความและ mailto จะได้ไม่หลุดกัน
-const CONTACT_EMAIL = 'TidSure@gmail.com'
+const CONTACT_EMAIL = 'tidsure001@gmail.com'
 
 // คลาสร่วมของลิงก์ในลิสต์
 // py-1.5 = ขยายพื้นที่กดให้นิ้วแตะง่ายบนมือถือ (ตัวหนังสือเปล่า ๆ กดยาก)
