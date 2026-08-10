@@ -14,7 +14,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
-import { LogoMark } from '../components/Logo.jsx'
 import { IconUser, IconArrowRight, IconCheck } from '../components/icons/index.jsx'
 
 export default function Account() {
@@ -60,9 +59,11 @@ export default function Account() {
       <div className="mx-auto flex min-h-[calc(100dvh-64px)] max-w-md items-center px-4 py-14">
         <div className="w-full animate-fade-up">
           <div className="text-center">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-arcane/40 bg-arcane/10 ring-glow">
-              <LogoMark className="h-8 w-8" />
-            </div>
+            <img
+              src="/images/moodeng-hi.png"
+              alt="Moodeng ทักทาย"
+              className="mx-auto h-28 w-28 object-contain"
+            />
             <h1 className="mt-4 text-2xl font-semibold text-ink">บัญชีของคุณ</h1>
           </div>
 
