@@ -11,5 +11,6 @@ export function errorHandler(err, req, res, next) {
   res.status(status).json({
     ok: false,
     message: err.message || 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์',
+    ...(err.debug ? { debug: err.debug } : {}), // DEBUG ชั่วคราว จะเอาออกทีหลัง
   })
 }

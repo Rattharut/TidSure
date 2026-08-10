@@ -101,6 +101,8 @@ export async function askTutor(req, res, next) {
       console.error('Gemini ตอบ error:', resp.status, detail)
       const e = new Error('ครู AI ไม่ว่างชั่วคราว ลองใหม่อีกครั้ง หรือดูเฉลยด้านบนก่อนนะ')
       e.status = 502
+      // DEBUG ชั่วคราว: แนบสถานะ+ข้อความจาก Google เพื่อหาสาเหตุ (จะเอาออกทีหลัง)
+      e.debug = `gemini ${resp.status}: ${detail.slice(0, 300)}`
       throw e
     }
 
