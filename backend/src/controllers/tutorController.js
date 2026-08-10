@@ -17,10 +17,10 @@
 // จึงลองไล่ไปเรื่อย ๆ จนเจอรุ่นที่ตอบได้ (รุ่นแรกที่ตั้งใน env จะถูกลองก่อน)
 const MODEL_CANDIDATES = [
   process.env.GEMINI_MODEL, // ถ้าตั้ง env ไว้ ลองอันนี้ก่อน
+  'gemini-flash-latest',    // ทดสอบแล้วมีโควตาฟรีจริง -> ลองก่อนเพื่อน
   'gemini-2.5-flash',
   'gemini-2.0-flash',
   'gemini-2.5-flash-lite',
-  'gemini-flash-latest',
 ].filter(Boolean).filter((m, i, a) => a.indexOf(m) === i) // ตัดค่าซ้ำ
 
 const geminiUrl = (model, key) =>
@@ -124,10 +124,10 @@ export async function askTutor(req, res, next) {
       // error อื่น (เช่น 400 key ผิด) ก็ลองรุ่นถัดไปเผื่อได้ แล้วค่อยสรุปตอนจบ
     }
 
-    // ลองครบทุกรุ่นแล้วยังไม่ได้
+    // ลองครบทุกรุ่นแล้วยังไม่ได้ (รายละเอียดอยู่ใน log ของเซิร์ฟเวอร์)
+    console.error('Gemini ใช้ไม่ได้ทุกรุ่น:', tried.join(' | '))
     const e = new Error('ครู AI ไม่ว่างชั่วคราว ลองใหม่อีกครั้ง หรือดูเฉลยด้านบนก่อนนะ')
     e.status = 502
-    e.debug = tried.join(' | ') // DEBUG ชั่วคราว จะเอาออกทีหลัง
     throw e
   } catch (err) {
     next(err) // ส่งต่อให้ errorHandler ตอบ JSON รูปแบบเดียวกับ API อื่น
