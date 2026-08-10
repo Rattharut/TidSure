@@ -22,6 +22,7 @@ import seaserpentIdle from '../assets/sprites/seaserpent-idle.png'
 import scorpionIdle from '../assets/sprites/scorpion-idle.png'
 import banditIdle from '../assets/sprites/bandit-idle.png'
 import wormIdle from '../assets/sprites/worm-idle.png'
+import dragonIdle from '../assets/sprites/dragon-idle.png'
 import heroCombat from '../assets/sprites/hero-combat.png'
 import moodengIdle from '../assets/sprites/moodeng-idle.png'
 
@@ -269,6 +270,31 @@ export const SPRITES = {
     shadow: null,
     // บอสด่านยาก = ใหญ่ที่สุดในเกม เท่าบอสงูทะเลด่านปานกลาง (สูงสุดที่กล่องรับได้)
     stageHeight: 142,
+  },
+
+  // ---------------------------------------------------------------------------
+  // มังกร (dragon) — บอสของ "โหมดจำกัดเวลา" (เป็น Monster ตัวเดียวของโหมดนั้น)
+  // ---------------------------------------------------------------------------
+  // ตัวใหญ่และน่าเกรงขามที่สุดในเกม เพราะเป็นบอสสุดท้ายของโหมดสอบจริง
+  dragon: {
+    name: 'มังกร',
+    idle: {
+      src: dragonIdle,
+      frames: 4,
+      // เซลล์ 347x344 (ไฟล์รวม 1388x344) — กว้างเพราะปีกกางออกสองข้าง
+      frameWidth: 347,
+      frameHeight: 344,
+      // 3.0 วินาที — ช้าที่สุดในทุกตัว หายใจช้าและหนัก สื่อความสง่าน่าเกรงขาม
+      // (มังกรตัวใหญ่สุด จังหวะยิ่งช้ายิ่งดูมีพลัง — ค่าจากสเปก)
+      duration: 3.0,
+    },
+    // เงากว้างที่สุดในเกม (200) เพราะปีกกางออกทั้งสองข้าง
+    shadow: { width: 200, height: 18 },
+    // เงาขยับเบา (1.03) หายใจสงบ ไม่กระพือปีก ตัวแทบไม่ไหว
+    shadowPunch: 1.03,
+    // สูงเต็มกล่องฉากต่อสู้ (144) = ใหญ่ที่สุดในบรรดาสไปรต์ทั้งหมด
+    // สื่อชัดว่าเป็นบอสสุดท้าย ตัวใหญ่กว่าฮีโร่ (124) และมอนทุกตัวอย่างเห็นได้ชัด
+    stageHeight: 144,
   },
 }
 

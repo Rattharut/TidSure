@@ -136,6 +136,7 @@ export default function TimedMode({ choices, onExit }) {
         difficulty={choices.difficulty}
         enemyLabel="บอสมังกร"
         EnemyIcon={IconDragon}
+        enemySprite="dragon"
         enemyTone="rose"
         effect={describeSwing(run.lastEvent)}
         // questionIndex เปลี่ยนทุกข้อ = ทุกครั้งที่เกิดการปะทะใหม่ -> ข้อความเด้งใหม่
