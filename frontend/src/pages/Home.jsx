@@ -36,8 +36,16 @@ export default function Home() {
 
         {/* เนื้อหา hero */}
         <div className="relative z-10 mx-auto max-w-3xl text-center">
-          <h1 className="animate-fade-up font-pixel text-2xl leading-relaxed text-white sm:text-4xl">
-            Quest begins
+          {/* หัวข้อ hero เป็นภาพ pixel-art (คง <h1> + alt ไว้เพื่อ SEO/screen reader)
+              ปรับขนาดตามจอ: เด่นบนเดสก์ท็อป แต่ไม่ล้นบนมือถือ */}
+          <h1 className="animate-fade-up">
+            <img
+              src="/images/hero-title.png"
+              alt="Quest Begins"
+              loading="eager"
+              decoding="async"
+              className="mx-auto w-64 max-w-full drop-shadow-[0_4px_16px_rgba(0,0,0,0.45)] sm:w-80 lg:w-[28rem]"
+            />
           </h1>
 
           <blockquote className="mx-auto mt-6 max-w-2xl animate-fade-up text-left font-body text-lg leading-relaxed text-muted" style={{ animationDelay: '120ms' }}>
