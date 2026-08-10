@@ -169,7 +169,9 @@ export async function saveRun(run) {
 // =============================================================================
 // จำนวนการเคลียร์ดันเจี้ยน (เลเวล + จำนวนมังกรที่สังหาร)
 // =============================================================================
-function readGuestClears() {
+// ตัวนับในเครื่อง = "ตัวจริงที่นับทันที" ใช้ทั้ง guest และ login
+// (login ใช้ backend เป็นที่จำถาวร แต่เครื่องนับก่อนเสมอ จะได้ไม่ช้า/ไม่หายถ้า backend งอแง)
+function readClears() {
   try {
     const n = parseInt(localStorage.getItem(GUEST_CLEARS_KEY) || '0', 10)
     return Number.isFinite(n) && n > 0 ? n : 0
@@ -177,27 +179,38 @@ function readGuestClears() {
     return 0
   }
 }
+function writeClears(n) {
+  try {
+    localStorage.setItem(GUEST_CLEARS_KEY, String(Math.max(0, Math.floor(n))))
+  } catch {
+    // เบราว์เซอร์ไม่ให้เก็บก็ปล่อยไป
+  }
+}
 
-// เรียกทุกครั้งที่ผู้เล่นชนะดันเจี้ยน -> เลเวลขึ้น +1 และมังกรถูกสังหาร +1
-// login -> ยิงขึ้น backend (จำถาวร) | ผู้เยี่ยมชม -> เก็บลงเครื่อง
+// ล้างตัวนับในเครื่อง — เรียกตอน logout กันยอดของคนเก่าติดไปโชว์ให้คนใหม่
+export function resetDungeonClears() {
+  try {
+    localStorage.removeItem(GUEST_CLEARS_KEY)
+  } catch {
+    // ไม่เป็นไร
+  }
+}
+
+// เรียกทุกครั้งที่ผู้เล่นชนะดันเจี้ยน -> เลเวล +1 + สังหารมังกร +1
+// นับใน "เครื่องทันที" (ไม่มีวันช้า/หาย) แล้วถ้า login ค่อย sync ยอดล่าสุดขึ้น backend
 export async function recordDungeonClear() {
+  const next = readClears() + 1
+  writeClears(next) // นับทันที ไม่ต้องรอเน็ต
+
   if (isLoggedIn()) {
     try {
-      const { dungeonClears } = await statusApi.recordDungeonClear()
-      return dungeonClears
+      await statusApi.recordDungeonClear(next) // backend ใช้ $max กันนับซ้ำ/หาย
     } catch {
-      // ต่อ backend ไม่ได้ก็ไม่เป็นไร รอบหน้าที่ชนะจะนับใหม่ (ไม่ทำให้เกมค้าง)
-      return null
+      // backend ยังไม่ตอบ (เช่น Render เพิ่งตื่น) ไม่เป็นไร
+      // ค่าในเครื่องนับไว้แล้ว รอบหน้าที่โหลดหน้า Status จะ sync ขึ้นให้เอง
     }
   }
-
-  try {
-    const next = readGuestClears() + 1
-    localStorage.setItem(GUEST_CLEARS_KEY, String(next))
-    return next
-  } catch {
-    return null
-  }
+  return next
 }
 
 // =============================================================================
@@ -208,12 +221,24 @@ export async function loadStatus() {
   if (isLoggedIn()) {
     try {
       const data = await statusApi.getMyStatus()
+
+      // reconcile ยอดเคลียร์ดัน: เอาค่าที่มากกว่าระหว่าง backend กับเครื่อง
+      //   - ปกติ backend = ความจริง
+      //   - แต่ถ้าเครื่องล้ำหน้า (เพิ่งชนะแต่ sync ไม่ทัน/พลาด) ใช้ค่าเครื่อง แล้วดันขึ้น backend
+      const backendClears = data.dungeonClears ?? 0
+      const localClears = readClears()
+      const clears = Math.max(backendClears, localClears)
+      writeClears(clears) // ให้เครื่องตรงกับความจริงล่าสุด
+      if (localClears > backendClears) {
+        statusApi.recordDungeonClear(clears).catch(() => {}) // ตามให้ backend ทัน (best-effort)
+      }
+
       return {
         stats: data.stats || {},
         // แกนที่เป็นสตริงว่างจาก backend -> แปลงกลับเป็น null (= ยังไม่เลือกวิชา)
         axes: normalizeAxes(data.radarAxes),
         totalRuns: data.totalRuns ?? 0,
-        dungeonClears: data.dungeonClears ?? 0,
+        dungeonClears: clears,
         storage: 'server',
       }
     } catch (err) {
@@ -238,7 +263,7 @@ function loadGuestStatus() {
     stats: summarizeRuns(runs),
     axes: normalizeAxes(axes),
     totalRuns: runs.length,
-    dungeonClears: readGuestClears(),
+    dungeonClears: readClears(),
   }
 }
 

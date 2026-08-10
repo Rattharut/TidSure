@@ -18,6 +18,7 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { authApi, getToken, setToken, clearToken } from '../lib/api.js'
 import { syncFromUser, resetProgress } from '../lib/progress.js'
+import { resetDungeonClears } from '../lib/playerStats.js'
 
 // สร้างกล่อง Context
 const AuthContext = createContext(null)
@@ -90,7 +91,8 @@ export function AuthProvider({ children }) {
     clearToken()
     setUser(null)
     setIsGuest(false)
-    resetProgress()   // ล้างสกิลออกจาก cache — คนถัดไปที่ใช้เครื่องนี้ต้องเริ่มใหม่
+    resetProgress()        // ล้างสกิลออกจาก cache — คนถัดไปที่ใช้เครื่องนี้ต้องเริ่มใหม่
+    resetDungeonClears()   // ล้างยอดเลเวล/มังกรในเครื่อง กันติดไปหาคนใหม่
   }
 
   // ---- เข้าแบบผู้เยี่ยมชม (ไม่บันทึกความก้าวหน้า) ----

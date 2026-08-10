@@ -106,11 +106,17 @@ export async function getMyStatus(req, res, next) {
 // ใช้ $inc เพื่อบวกแบบอะตอมมิก (กันแข่งกันเขียนถ้ายิงพร้อมกัน)
 export async function recordDungeonClear(req, res, next) {
   try {
-    const user = await User.findByIdAndUpdate(
-      req.userId,
-      { $inc: { dungeonClears: 1 } },
-      { new: true }
-    ).select('dungeonClears')
+    const { clears } = req.body || {}
+
+    // ถ้า client ส่ง "ยอดรวมล่าสุด" มา -> ใช้ $max (ตั้งเป็นค่าที่มากกว่าเสมอ)
+    //   idempotent: ยิงซ้ำด้วยยอดเดิมก็ไม่เพิ่ม -> กันนับซ้ำเวลา retry
+    //   และถ้าเครื่อง client นับล้ำหน้า (เพราะ backend เคยพลาด) ก็ตามให้ทัน -> กันนับหาย
+    // ถ้าไม่ส่งมา (ของเก่า) -> +1 แบบเดิม
+    const update = Number.isFinite(clears) && clears >= 0
+      ? { $max: { dungeonClears: Math.floor(clears) } }
+      : { $inc: { dungeonClears: 1 } }
+
+    const user = await User.findByIdAndUpdate(req.userId, update, { new: true }).select('dungeonClears')
 
     if (!user) {
       return res.status(404).json({ ok: false, message: 'ไม่พบผู้ใช้' })
