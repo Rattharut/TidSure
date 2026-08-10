@@ -137,7 +137,7 @@ export default function Status() {
               </span>
               <span className="inline-flex items-center gap-1.5 rounded-lg border border-rose/40 bg-rose/10 px-3 py-1.5">
                 <IconDragon className="h-4 w-4 text-rose" />
-                <span className="text-sm text-muted">สังหารมังกร</span>
+                <span className="text-sm text-muted">ปราบมังกรสำเร็จแล้ว</span>
                 <span className="font-heading text-base tabular-nums text-rose">{dungeonClears}</span>
                 <span className="text-sm text-muted">ตัว</span>
               </span>
