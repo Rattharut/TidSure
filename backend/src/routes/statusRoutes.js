@@ -13,12 +13,13 @@
 // -----------------------------------------------------------------------------
 import { Router } from 'express'
 import { protect } from '../middleware/auth.js'
-import { saveResult, getMyStatus, updateAxes } from '../controllers/statusController.js'
+import { saveResult, getMyStatus, updateAxes, recordDungeonClear } from '../controllers/statusController.js'
 
 const router = Router()
 
 router.post('/result', protect, saveResult)
 router.get('/me', protect, getMyStatus)
 router.put('/axes', protect, updateAxes)
+router.post('/dungeon-clear', protect, recordDungeonClear)
 
 export default router

@@ -27,7 +27,7 @@ import {
   getDifficultyTheme, barStyle, dotStyle, DIFFICULTY_ORDER, DIFFICULTY_THEME, EMPTY_THEME,
 } from '../data/difficultyTheme.js'
 import { useAuth } from '../context/AuthContext.jsx'
-import { IconChart, IconClock, IconPencil } from '../components/icons/index.jsx'
+import { IconChart, IconClock, IconPencil, IconStar, IconDragon } from '../components/icons/index.jsx'
 
 // จำนวนแกนของกราฟ — ล็อกไว้ที่ 6 ตามสเปก
 const AXIS_COUNT = 6
@@ -52,7 +52,7 @@ export default function Status() {
 
   const [axes, setAxes] = useState(DEFAULT_AXES)
   const [stats, setStats] = useState({})
-  const [totalRuns, setTotalRuns] = useState(0)
+  const [dungeonClears, setDungeonClears] = useState(0)
   const [storage, setStorage] = useState('local')
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
@@ -67,7 +67,7 @@ export default function Status() {
         if (!alive) return
         setAxes(data.axes)
         setStats(data.stats)
-        setTotalRuns(data.totalRuns)
+        setDungeonClears(data.dungeonClears ?? 0)
         setStorage(data.storage)
       })
       .finally(() => alive && setLoading(false))
@@ -126,9 +126,22 @@ export default function Status() {
 
           <div className="w-full flex-1">
             <PlayerName />
-            <p className="mt-1 text-sm text-muted">
-              ทำข้อสอบโหมดจำกัดเวลาไปแล้ว <span className="text-ink">{totalRuns}</span> ครั้ง
-            </p>
+
+            {/* เลเวล + จำนวนมังกรที่สังหาร — มาจากการเคลียร์ดันเจี้ยน
+                เลเวลเริ่มที่ 1 แล้ว +1 ทุกครั้งที่เคลียร์ดัน (มังกร = จำนวนครั้งที่เคลียร์) */}
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-lg border border-gold/40 bg-gold/10 px-3 py-1.5">
+                <IconStar className="h-4 w-4 text-gold" />
+                <span className="text-sm text-muted">เลเวล</span>
+                <span className="font-heading text-base tabular-nums text-gold">{dungeonClears + 1}</span>
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-lg border border-rose/40 bg-rose/10 px-3 py-1.5">
+                <IconDragon className="h-4 w-4 text-rose" />
+                <span className="text-sm text-muted">สังหารมังกร</span>
+                <span className="font-heading text-base tabular-nums text-rose">{dungeonClears}</span>
+                <span className="text-sm text-muted">ตัว</span>
+              </span>
+            </div>
 
             {/* บอกตรง ๆ ว่าข้อมูลเก็บที่ไหน ผู้เล่นจะได้ไม่งงว่าทำไมย้ายเครื่องแล้วหาย */}
             {storage === 'local' && (

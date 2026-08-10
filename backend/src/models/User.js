@@ -44,6 +44,17 @@ const userSchema = new mongoose.Schema(
       type: [String],
       default: () => [],
     },
+
+    // จำนวนครั้งที่ "เคลียร์ดันเจี้ยนสำเร็จ" (ฆ่าบอส/มังกรประจำด่านได้)
+    // ใช้คำนวณ 2 อย่างบนหน้า Status:
+    //   เลเวล = dungeonClears + 1 (เริ่มเลเวล 1 แล้ว +1 ทุกครั้งที่เคลียร์ดัน)
+    //   จำนวนมังกรที่สังหาร = dungeonClears
+    // นับทุกครั้งที่ชนะ แม้เล่นระดับเดิมซ้ำ (ต่างจาก unlockedSkills ที่ปลดครั้งเดียว)
+    dungeonClears: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
   },
   { timestamps: true }
 )

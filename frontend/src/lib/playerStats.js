@@ -23,6 +23,7 @@ import { DIFFICULTY_THEME } from '../data/difficultyTheme.js'
 const GUEST_RUNS_KEY = 'tidsure_guest_runs'
 const GUEST_AXES_KEY = 'tidsure_guest_axes'
 const GUEST_NAME_KEY = 'tidsure_guest_name'
+const GUEST_CLEARS_KEY = 'tidsure_guest_dungeon_clears' // จำนวนเคลียร์ดันของผู้เยี่ยมชม
 
 // ชื่อเริ่มต้นเมื่อผู้เล่นยังไม่ได้ตั้งชื่อเอง
 export const DEFAULT_PLAYER_NAME = 'นักผจญภัย'
@@ -166,9 +167,43 @@ export async function saveRun(run) {
 }
 
 // =============================================================================
+// จำนวนการเคลียร์ดันเจี้ยน (เลเวล + จำนวนมังกรที่สังหาร)
+// =============================================================================
+function readGuestClears() {
+  try {
+    const n = parseInt(localStorage.getItem(GUEST_CLEARS_KEY) || '0', 10)
+    return Number.isFinite(n) && n > 0 ? n : 0
+  } catch {
+    return 0
+  }
+}
+
+// เรียกทุกครั้งที่ผู้เล่นชนะดันเจี้ยน -> เลเวลขึ้น +1 และมังกรถูกสังหาร +1
+// login -> ยิงขึ้น backend (จำถาวร) | ผู้เยี่ยมชม -> เก็บลงเครื่อง
+export async function recordDungeonClear() {
+  if (isLoggedIn()) {
+    try {
+      const { dungeonClears } = await statusApi.recordDungeonClear()
+      return dungeonClears
+    } catch {
+      // ต่อ backend ไม่ได้ก็ไม่เป็นไร รอบหน้าที่ชนะจะนับใหม่ (ไม่ทำให้เกมค้าง)
+      return null
+    }
+  }
+
+  try {
+    const next = readGuestClears() + 1
+    localStorage.setItem(GUEST_CLEARS_KEY, String(next))
+    return next
+  } catch {
+    return null
+  }
+}
+
+// =============================================================================
 // โหลดค่าพลัง + การตั้งค่าแกน สำหรับหน้า Status
 // =============================================================================
-// คืน { stats, axes, totalRuns, storage }
+// คืน { stats, axes, totalRuns, dungeonClears, storage }
 export async function loadStatus() {
   if (isLoggedIn()) {
     try {
@@ -178,6 +213,7 @@ export async function loadStatus() {
         // แกนที่เป็นสตริงว่างจาก backend -> แปลงกลับเป็น null (= ยังไม่เลือกวิชา)
         axes: normalizeAxes(data.radarAxes),
         totalRuns: data.totalRuns ?? 0,
+        dungeonClears: data.dungeonClears ?? 0,
         storage: 'server',
       }
     } catch (err) {
@@ -198,7 +234,12 @@ function loadGuestStatus() {
   } catch {
     // ใช้ค่าเริ่มต้นต่อไป
   }
-  return { stats: summarizeRuns(runs), axes: normalizeAxes(axes), totalRuns: runs.length }
+  return {
+    stats: summarizeRuns(runs),
+    axes: normalizeAxes(axes),
+    totalRuns: runs.length,
+    dungeonClears: readGuestClears(),
+  }
 }
 
 // =============================================================================

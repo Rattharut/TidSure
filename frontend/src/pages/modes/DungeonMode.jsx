@@ -18,6 +18,7 @@ import SkillBar from '../../components/game/SkillBar.jsx'
 import SpritePlaceholder from '../../components/game/SpritePlaceholder.jsx'
 import { getQuestions } from '../../data/questions/index.js'
 import { getProgress, recordBossWin } from '../../lib/progress.js'
+import { recordDungeonClear } from '../../lib/playerStats.js'
 import { SKILLS, SKILL_MOODENG } from '../../data/gameConfig.js'
 import { SPRITES, resolveMonsterSprite } from '../../data/sprites.js'
 import {
@@ -61,7 +62,8 @@ export default function DungeonMode({ choices, onExit }) {
   useEffect(() => {
     if (run.status === 'win' && !savedWinRef.current) {
       savedWinRef.current = true
-      recordBossWin(choices.difficulty)
+      recordBossWin(choices.difficulty)   // ปลดล็อกสกิลของระดับนั้น
+      recordDungeonClear()                // เลเวล +1 + สังหารมังกร +1 (นับทุกครั้งที่ชนะ)
     }
   }, [run.status, choices.difficulty])
 

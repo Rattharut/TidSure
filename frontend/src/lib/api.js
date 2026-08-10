@@ -117,6 +117,9 @@ export const statusApi = {
 
   // บันทึกการตั้งค่าแกน (อาร์เรย์รหัสวิชา 6 ช่อง)
   updateAxes: (radarAxes) => request('/api/status/axes', { method: 'PUT', body: { radarAxes } }),
+
+  // เพิ่มจำนวนเคลียร์ดันเจี้ยน +1 (เรียกตอนชนะดัน) -> คืน { dungeonClears }
+  recordDungeonClear: () => request('/api/status/dungeon-clear', { method: 'POST' }),
 }
 
 // =============================================================================

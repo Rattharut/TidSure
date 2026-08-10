@@ -76,7 +76,7 @@ export async function saveResult(req, res, next) {
 // =============================================================================
 export async function getMyStatus(req, res, next) {
   try {
-    const user = await User.findById(req.userId).select('displayName radarAxes')
+    const user = await User.findById(req.userId).select('displayName radarAxes dungeonClears')
     if (!user) {
       return res.status(404).json({ ok: false, message: 'ไม่พบผู้ใช้' })
     }
@@ -92,7 +92,31 @@ export async function getMyStatus(req, res, next) {
       radarAxes: user.radarAxes,
       stats: summarizeBySubject(results),
       totalRuns: results.length,
+      dungeonClears: user.dungeonClears || 0,
     })
+  } catch (err) {
+    next(err)
+  }
+}
+
+// =============================================================================
+// POST /api/status/dungeon-clear — เพิ่มจำนวนการเคลียร์ดันเจี้ยน +1
+// =============================================================================
+// เรียกทุกครั้งที่ผู้เล่นชนะดันเจี้ยน (ฆ่ามังกร/บอสประจำด่านสำเร็จ)
+// ใช้ $inc เพื่อบวกแบบอะตอมมิก (กันแข่งกันเขียนถ้ายิงพร้อมกัน)
+export async function recordDungeonClear(req, res, next) {
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.userId,
+      { $inc: { dungeonClears: 1 } },
+      { new: true }
+    ).select('dungeonClears')
+
+    if (!user) {
+      return res.status(404).json({ ok: false, message: 'ไม่พบผู้ใช้' })
+    }
+
+    res.json({ ok: true, dungeonClears: user.dungeonClears })
   } catch (err) {
     next(err)
   }
