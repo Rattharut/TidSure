@@ -105,12 +105,12 @@ export default function Navbar() {
         </div>
 
         {/* ---- ส่วนที่ 3: ปุ่ม Login / ชื่อผู้เล่น (ขวา) — แสดงเฉพาะจอ lg ขึ้นไป ---- */}
-        {/* ล็อกอินอยู่ -> โชว์ชื่อผู้เล่น (กดไปหน้าบัญชี) / ยังไม่ล็อกอิน -> โชว์ปุ่ม Login
-            max-w + truncate = กันชื่อผู้เล่นยาว ๆ ดันเมนูจนล้น */}
+        {/* ล็อกอินอยู่ -> โชว์ "บัญชี" (กดไปหน้าบัญชี) / ยังไม่ล็อกอิน -> โชว์ปุ่ม Login
+            ไม่เอาชื่อผู้เล่นมาแทน (ตามที่ผู้ใช้ต้องการ) */}
         <div className="hidden lg:block">
           <NavLink to="/account" className="btn-cta max-w-[200px] !px-4 !py-2 text-sm">
             <IconUser className="h-4 w-4 shrink-0" />
-            <span className="truncate">{user ? user.displayName : 'Login'}</span>
+            <span className="truncate">{user ? 'บัญชี' : 'Login'}</span>
           </NavLink>
         </div>
 
@@ -167,7 +167,7 @@ export default function Navbar() {
             className="btn-cta w-full !px-5 !py-2.5 text-sm"
           >
             <IconUser className="h-5 w-5" />
-            {user ? user.displayName : 'Login'}
+            {user ? 'บัญชี' : 'Login'}
           </NavLink>
         </div>
       )}

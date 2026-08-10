@@ -13,7 +13,7 @@
 //   ใช้ useEffect + setInterval เดินนาฬิกาทุก 1 วินาที
 //   และต้อง clearInterval ใน cleanup ทุกครั้ง ไม่งั้นนาฬิกาจะเดินซ้อนกันหลายตัว
 // -----------------------------------------------------------------------------
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import BattleStage from '../../components/game/BattleStage.jsx'
 import HeartBar from '../../components/game/HeartBar.jsx'
 import QuestionPanel from '../../components/game/QuestionPanel.jsx'
@@ -22,6 +22,7 @@ import { NoQuestions } from './DungeonMode.jsx'
 import { getQuestions } from '../../data/questions/index.js'
 import { formatTime, TIMED_QUESTIONS_PER_STAGE } from '../../data/gameConfig.js'
 import { createTimedRun, answerTimedQuestion, tickTimedRun } from '../../game/timedEngine.js'
+import { recordDungeonClear } from '../../lib/playerStats.js'
 import { IconDragon, IconArrowLeft } from '../../components/icons/index.jsx'
 
 export default function TimedMode({ choices, onExit }) {
@@ -54,6 +55,16 @@ export default function TimedMode({ choices, onExit }) {
 
     // cleanup: หยุดนาฬิกาเมื่อออกจากหน้า หรือเมื่อ effect ทำงานรอบใหม่
     return () => clearInterval(timer)
+  }, [run.status])
+
+  // ---- ชนะ = ปราบมังกรสำเร็จ (ทำครบทันเวลา) -> นับเลเวล/มังกร +1 ----
+  // guard ด้วย ref: บันทึกครั้งเดียวต่อการชนะ 1 ครั้ง (กัน re-render เรียกซ้ำ)
+  const savedWinRef = useRef(false)
+  useEffect(() => {
+    if (run.status === 'win' && !savedWinRef.current) {
+      savedWinRef.current = true
+      recordDungeonClear()
+    }
   }, [run.status])
 
   // โจทย์ปัจจุบัน — โหมดนี้ทำครบทุกข้อแล้วจบ จึงไม่ต้องวนซ้ำ
