@@ -110,7 +110,7 @@ export default function Navbar() {
         <div className="hidden lg:block">
           <NavLink to="/account" className="btn-cta max-w-[200px] !px-4 !py-2 text-sm">
             <IconUser className="h-4 w-4 shrink-0" />
-            <span className="truncate">{user ? 'บัญชี' : 'Login'}</span>
+            <span className={`truncate ${user ? 'font-pixel text-xs' : ''}`}>{user ? 'Account' : 'Login'}</span>
           </NavLink>
         </div>
 
@@ -167,7 +167,7 @@ export default function Navbar() {
             className="btn-cta w-full !px-5 !py-2.5 text-sm"
           >
             <IconUser className="h-5 w-5" />
-            {user ? 'บัญชี' : 'Login'}
+            {user ? <span className="font-pixel text-xs">Account</span> : 'Login'}
           </NavLink>
         </div>
       )}
