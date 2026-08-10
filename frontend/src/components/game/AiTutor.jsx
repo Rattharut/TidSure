@@ -19,6 +19,18 @@ import { IconBrain, IconSparkle, IconArrowRight } from '../icons/index.jsx'
 // คำถามลัด กดง่าย ไม่ต้องพิมพ์เอง (เดโมลื่นบนมือถือ)
 const QUICK_ASKS = ['อธิบายง่ายกว่านี้', 'ขอตัวอย่างอีกข้อ', 'ทำไมข้อที่หนูตอบถึงผิด']
 
+// แปลง **ตัวหนา** เป็นตัวหนาจริง (AI ชอบตอบมาเป็นมาร์กดาวน์)
+// ปลอดภัย: ใช้ React element ไม่ใช่ dangerouslySetInnerHTML จึงไม่มีช่องโหว่ XSS
+function renderRich(text) {
+  return text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
+    part.startsWith('**') && part.endsWith('**') ? (
+      <strong key={i} className="font-heading text-white">{part.slice(2, -2)}</strong>
+    ) : (
+      part
+    )
+  )
+}
+
 export default function AiTutor({ question, selected }) {
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState([]) // { role: 'user' | 'model', text }
@@ -109,7 +121,7 @@ export default function AiTutor({ question, selected }) {
           m.role === 'model' ? (
             <div key={i} className="flex justify-start">
               <p className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-tl-sm bg-elevated px-3 py-2 text-sm leading-relaxed text-ink">
-                {m.text}
+                {renderRich(m.text)}
               </p>
             </div>
           ) : (

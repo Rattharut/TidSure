@@ -94,7 +94,13 @@ export async function askTutor(req, res, next) {
     const payload = {
       system_instruction: { parts: [{ text: buildSystemInstruction(context) }] },
       contents,
-      generationConfig: { temperature: 0.7, maxOutputTokens: 600 },
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 1024,
+        // ปิด "การคิด" (thinking) ของรุ่น 2.5 — ไม่งั้นมันกินโควตา token
+        // จนคำตอบจริงถูกตัดกลางประโยค (บั๊กที่เจอ) + ตอบไวขึ้นด้วย
+        thinkingConfig: { thinkingBudget: 0 },
+      },
     }
 
     // ลองไล่ทีละรุ่นจนกว่าจะมีรุ่นไหนตอบได้
