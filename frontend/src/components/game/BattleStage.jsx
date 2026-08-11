@@ -121,7 +121,7 @@ export default function BattleStage({
         {/* showEffect (จาก timer) เป็นตัวคุมว่าซ่อนเมื่อไร ทำงานทุกกรณีรวมโหมดลดการเคลื่อนไหว
             key = effectKey -> เอฟเฟกต์ใหม่สร้าง span ใหม่ ให้ลูกเล่นเด้งเล่นตั้งแต่ต้นเสมอ */}
         {effect && showEffect && (
-          <div className="pointer-events-none absolute inset-x-0 top-1/2 flex -translate-y-1/2 justify-center">
+          <div className="pointer-events-none absolute inset-x-0 top-1/2 z-20 flex -translate-y-1/2 justify-center">
             <span
               key={effectKey ?? effect}
               className="effect-pop rounded-lg border border-border bg-bg/90 px-4 py-2 font-game text-sm text-ink"
