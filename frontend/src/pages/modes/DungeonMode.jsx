@@ -26,8 +26,9 @@ import {
   currentMonster, computeDungeonRewards,
 } from '../../game/dungeonEngine.js'
 import {
-  IconSkull, IconTrophy, IconArrowLeft, IconStar, IconBolt,
+  IconSkull, IconTrophy, IconArrowLeft, IconStar, IconBolt, IconCheck,
 } from '../../components/icons/index.jsx'
+import { useAuth } from '../../context/AuthContext.jsx'
 
 export default function DungeonMode({ choices, onExit }) {
   // ---- สถานะของด่าน ----
@@ -232,6 +233,7 @@ function describeEvent(e) {
 // หน้าจบด่านของโหมดดันเจี้ยน
 // ---------------------------------------------------------------------------
 function DungeonResult({ run, choices, onExit }) {
+  const { user } = useAuth() // ล็อกอินอยู่ไหม -> ตัดสินว่ารางวัลถูกเก็บถาวรหรือชั่วคราว
   const win = run.status === 'win'
   // รางวัล: ฆ่าบอส = ได้เลเวล + ปลดล็อกสกิลตามระดับความยาก
   const rewards = computeDungeonRewards(run)
@@ -277,10 +279,18 @@ function DungeonResult({ run, choices, onExit }) {
                 ปลดล็อกสกิล: {unlockedSkillDef.name}
               </p>
             )}
-            {/* TODO: บันทึกรางวัลลง backend ด้วย applyRewardsToProgress() + POST /api/progress */}
-            <p className="text-xs text-muted">
-              * รอบนี้ยังไม่บันทึกถาวร (ยังไม่ต่อฐานข้อมูล)
-            </p>
+            {/* บันทึกจริงแล้ว: recordBossWin ยิงสกิลขึ้น backend, recordDungeonClear เก็บเลเวล
+                ข้อความจึงบอกตามจริงตามสถานะล็อกอิน */}
+            {user ? (
+              <p className="flex items-center gap-2 text-xs text-success">
+                <IconCheck className="h-3.5 w-3.5 shrink-0" />
+                บันทึกลงบัญชีของคุณถาวรแล้ว
+              </p>
+            ) : (
+              <p className="text-xs text-gold">
+                * เข้าสู่ระบบเพื่อเก็บสกิลถาวร — ตอนนี้สกิลจะหายเมื่อรีเฟรช
+              </p>
+            )}
           </div>
         )}
 
