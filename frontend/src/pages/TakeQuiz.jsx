@@ -148,7 +148,10 @@ export default function TakeQuiz() {
           <StepCards
             title="เลือกระดับความยาก"
             items={DIFFICULTIES.map((d) => ({
-              key: d.value, label: d.label, desc: d.desc, tone: d.tone, bg: d.bg,
+              key: d.value, label: d.label, desc: d.desc, tone: d.tone,
+              // พื้นหลังการ์ด = ภาพบอสประจำด่าน "ของโหมดดันเจี้ยน" เท่านั้น
+              // โหมดจำกัดเวลาบอสเป็นมังกรเสมอ (ไม่แยกตามความยาก) จึงไม่โชว์พื้นหลังบอสดันเจี้ยน
+              bg: choices.mode === MODE_DUNGEON ? d.bg : null,
             }))}
             onPick={(v) => { update({ difficulty: v }); setStep('run') }}
             onBack={() => setStep(3)}
