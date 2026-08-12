@@ -120,7 +120,7 @@ export default function Footer() {
             และไม่มีส่วนเกี่ยวข้องกับ ทปอ. หรือหน่วยงานผู้จัดสอบ
           </p>
           <p className="mt-1 text-xs text-muted">
-            © {new Date().getFullYear()} TidSure • ติดชัว — สร้างเพื่อการเรียนรู้
+            © {new Date().getFullYear()} TidSure • ติดชัวร์ — สร้างเพื่อการเรียนรู้
           </p>
         </div>
       </div>
