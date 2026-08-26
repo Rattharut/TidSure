@@ -45,6 +45,9 @@ const QUOTA_COOLDOWN_MS = 60 * 60 * 1000 // พัก 1 ชั่วโมงแ
 
 const isCoolingDown = (model) => (quotaCooldown.get(model) ?? 0) > Date.now()
 
+// สาเหตุที่ Gemini ตอบว่างเพราะ "ตัวกรองเนื้อหา" ของ Google บล็อกไว้
+const BLOCKED_REASONS = new Set(['SAFETY', 'PROHIBITED_CONTENT', 'BLOCKLIST', 'RECITATION'])
+
 // เพดานเวลาต่อ 1 คำถาม — ช่วงที่ Gemini รุ่นฟรีคนใช้ล้น บางครั้งตอบช้าเป็นนาที
 // ถ้าปล่อยไว้ผู้ใช้จะนั่งมองหน้าจอค้าง สู้ตัดจบแล้วบอกให้กดใหม่ดีกว่า
 const ATTEMPT_TIMEOUT_MS = 30 * 1000  // ต่อการยิง 1 ครั้ง
@@ -171,6 +174,7 @@ export async function askTutor(req, res, next) {
     const codes = []            // สรุปสั้น ๆ "รุ่น:สถานะ" ส่งกลับไปให้ช่วยหาสาเหตุได้
     let retryAfter = null       // Google บอกให้รอกี่วินาที (ถ้าบอกมา)
     let sawEmptyReply = false   // Gemini ตอบ 200 แต่ข้อความว่าง (มักเกิดกับรุ่นที่มี thinking)
+    let sawBlocked = false      // ตัวกรองเนื้อหาของ Google บล็อกคำตอบ
     let sawTimeout = false      // ยิงไปแล้วรอจนหมดเวลา (Gemini ช้าผิดปกติ)
     const triedModels = new Set()      // รุ่นที่ได้ลองจริงรอบนี้
     const dailyQuotaModels = new Set() // รุ่นที่โควตา "รายวัน" หมด
@@ -237,8 +241,8 @@ export async function askTutor(req, res, next) {
           if (reply) return res.json({ ok: true, reply, model })
 
           // ตอบ 200 แต่ไม่มีข้อความ — สาเหตุที่พบบ่อย:
-          //   MAX_TOKENS = โควตา token หมดไปกับ "ส่วนคิด" (thinking) ก่อนจะได้เขียนคำตอบ
-          //   SAFETY     = ตัวกรองเนื้อหาบล็อก
+          //   MAX_TOKENS         = โควตา token หมดไปกับ "ส่วนคิด" (thinking) ก่อนได้เขียนคำตอบ
+          //   SAFETY / PROHIBITED_CONTENT = ตัวกรองเนื้อหาของ Google บล็อก
           const reason = data?.candidates?.[0]?.finishReason || 'ไม่ทราบสาเหตุ'
           sawEmptyReply = true
           tried.push(`${model}#${attempt}: ตอบว่าง (finishReason=${reason})`)
@@ -249,6 +253,15 @@ export async function askTutor(req, res, next) {
             payload.generationConfig.maxOutputTokens = 8192
             continue
           }
+
+          // ตัวกรองเนื้อหาบล็อก — วัดจากของจริงแล้วพบว่าไม่คงที่
+          // (โจทย์เดิมเป๊ะ ๆ ยิง 8 ครั้ง โดนบล็อกครั้งเดียว อีก 7 ครั้งผ่านปกติ)
+          // จึงลองใหม่ได้ ไม่ควรตัดจบทันที
+          if (BLOCKED_REASONS.has(reason)) {
+            sawBlocked = true
+            if (attempt < maxAttempts && !outOfTime()) continue
+          }
+
           break // รุ่นนี้ตอบว่าง ลองรุ่นถัดไป
         }
 
@@ -333,6 +346,8 @@ export async function askTutor(req, res, next) {
       const secs = retryAfter ?? 30
       message = `ตอนนี้มีคนถามครู AI พร้อมกันเยอะ รอสัก ${secs} วินาทีแล้วกดถามใหม่นะ (ระหว่างนี้ดูเฉลยด้านบนไปก่อนได้)`
       status = 429
+    } else if (sawBlocked) {
+      message = 'ครู AI ตอบข้อนี้ไม่ได้ (ระบบกรองเนื้อหาของ Google กันไว้) ลองกดถามใหม่ หรือถามด้วยคำอื่นดูนะ'
     } else if (sawEmptyReply) {
       message = 'ครู AI คิดคำตอบไม่จบ ลองกดถามใหม่อีกครั้งนะ (หรือดูเฉลยด้านบนไปก่อนได้)'
     } else {
