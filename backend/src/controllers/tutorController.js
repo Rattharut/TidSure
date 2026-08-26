@@ -38,6 +38,18 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 // (ทุกครั้งที่ยิงไปโดนรุ่นที่ไม่มีอยู่ = เสียเวลาเปล่า และทำให้ผู้ใช้รอนานขึ้น)
 const deadModels = new Set()
 
+// รุ่นที่โควตา "รายวัน" หมดไปแล้ว — พักไว้ชั่วคราวแล้วค่อยกลับมาลองใหม่
+// (ยิงไปก็ได้ 429 เหมือนเดิม เสียเวลาผู้ใช้เปล่า ๆ) เก็บเป็นเวลาที่พักครบ
+const quotaCooldown = new Map()
+const QUOTA_COOLDOWN_MS = 60 * 60 * 1000 // พัก 1 ชั่วโมงแล้วลองใหม่
+
+const isCoolingDown = (model) => (quotaCooldown.get(model) ?? 0) > Date.now()
+
+// เพดานเวลาต่อ 1 คำถาม — ช่วงที่ Gemini รุ่นฟรีคนใช้ล้น บางครั้งตอบช้าเป็นนาที
+// ถ้าปล่อยไว้ผู้ใช้จะนั่งมองหน้าจอค้าง สู้ตัดจบแล้วบอกให้กดใหม่ดีกว่า
+const ATTEMPT_TIMEOUT_MS = 30 * 1000  // ต่อการยิง 1 ครั้ง
+const TOTAL_DEADLINE_MS = 50 * 1000   // รวมทุกรุ่นทุกครั้งที่ลอง
+
 // ---- ตาข่ายกันตก: ถามรายชื่อรุ่นจาก Google เอง ----
 // ใช้เมื่อรุ่นที่เราเขียนไว้ในโค้ดตาย 404 หมดทุกตัว (Google เปลี่ยนชื่อรุ่นอีกรอบ)
 // จะได้ไม่ต้องรอคนมาแก้โค้ด — เว็บหาเองได้ว่าตอนนี้มีรุ่นอะไรให้ใช้บ้าง
@@ -158,16 +170,27 @@ export async function askTutor(req, res, next) {
     const statuses = []         // เก็บเฉพาะรหัสสถานะ ไว้ตัดสินใจว่าจะบอกผู้ใช้ว่าอะไร
     const codes = []            // สรุปสั้น ๆ "รุ่น:สถานะ" ส่งกลับไปให้ช่วยหาสาเหตุได้
     let retryAfter = null       // Google บอกให้รอกี่วินาที (ถ้าบอกมา)
-    let sawDailyQuota = false   // เจอโควตา "รายวัน" หมดหรือเปล่า
     let sawEmptyReply = false   // Gemini ตอบ 200 แต่ข้อความว่าง (มักเกิดกับรุ่นที่มี thinking)
+    let sawTimeout = false      // ยิงไปแล้วรอจนหมดเวลา (Gemini ช้าผิดปกติ)
+    const triedModels = new Set()      // รุ่นที่ได้ลองจริงรอบนี้
+    const dailyQuotaModels = new Set() // รุ่นที่โควตา "รายวัน" หมด
 
-    // รายชื่อรุ่นที่จะลองรอบนี้ — ถ้ารุ่นที่เขียนไว้ในโค้ดตาย 404 หมดแล้ว
-    // ให้ไปถาม Google เอาเองว่าตอนนี้มีรุ่นอะไรใช้ได้บ้าง
-    let candidates = MODEL_CANDIDATES.filter((m) => !deadModels.has(m))
+    const startedAt = Date.now()
+    const outOfTime = () => Date.now() - startedAt > TOTAL_DEADLINE_MS
+
+    // รายชื่อรุ่นที่จะลองรอบนี้
+    //   - ตัดรุ่นที่ตาย 404 ทิ้ง
+    //   - ตัดรุ่นที่โควตารายวันหมด (พักไว้ก่อน) ออกด้วย จะได้ไม่เสียเวลายิงไปโดน 429 ซ้ำ
+    //   - ถ้าตัดจนไม่เหลือเลย ให้ไปถาม Google เอาเองว่าตอนนี้มีรุ่นอะไรใช้ได้บ้าง
+    let candidates = MODEL_CANDIDATES.filter((m) => !deadModels.has(m) && !isCoolingDown(m))
     let discoveryDone = false
     if (candidates.length === 0) {
-      candidates = await discoverModels(key)
-      discoveryDone = true
+      // ไม่เหลือรุ่นเลย: ถ้าเป็นเพราะโควตาหมดชั่วคราว ให้ยอมลองรุ่นเดิมอีกที ดีกว่าไม่ทำอะไรเลย
+      candidates = MODEL_CANDIDATES.filter((m) => !deadModels.has(m))
+      if (candidates.length === 0) {
+        candidates = await discoverModels(key)
+        discoveryDone = true
+      }
     }
 
     // ใช้ queue แทน for...of ธรรมดา เพราะระหว่างวนอาจมีการ "เติมรุ่นใหม่" เข้ามาท้ายแถว
@@ -177,18 +200,33 @@ export async function askTutor(req, res, next) {
     for (let qi = 0; qi < queue.length; qi++) {
       const model = queue[qi]
       if (deadModels.has(model)) continue // รุ่นนี้เคยตอบ 404 มาแล้ว ข้ามไปเลย
+      if (outOfTime()) break              // หมดเวลาแล้ว ไม่ต้องลองรุ่นถัดไป
 
       // รุ่นแรกคือรุ่นหลักที่รู้ว่าใช้ได้จริง จึงยอมลองซ้ำให้ถึง 3 ครั้ง
       // 503 (ฝั่ง Google คนใช้ล้น) เป็นอาการชั่วคราวที่เจอบ่อยมากในโควตาฟรี
       // ลองซ้ำอีกไม่กี่วินาทีมักผ่าน — ดีกว่าปล่อยให้ผู้ใช้เห็น error ทั้งที่ระบบปกติดี
       const maxAttempts = qi === 0 ? 3 : 1
+      triedModels.add(model)
 
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        const resp = await fetch(geminiUrl(model, key), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        })
+        let resp
+        try {
+          resp = await fetch(geminiUrl(model, key), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            // ถ้า Gemini ไม่ตอบภายในเวลาที่กำหนด ให้ยกเลิกแล้วไปลองทางอื่น
+            signal: AbortSignal.timeout(ATTEMPT_TIMEOUT_MS),
+          })
+        } catch (err) {
+          // ส่วนใหญ่คือ TimeoutError (Gemini ช้าเกินรอ) หรือเน็ตสะดุด
+          sawTimeout = true
+          console.error(`Gemini (${model}) ไม่ตอบ:`, err.name)
+          tried.push(`${model}#${attempt}: ${err.name}`)
+          codes.push(`${model}:${err.name === 'TimeoutError' ? 'timeout' : 'neterr'}`)
+          if (attempt < maxAttempts && !outOfTime()) continue
+          break
+        }
 
         if (resp.ok) {
           const data = await resp.json()
@@ -228,22 +266,23 @@ export async function askTutor(req, res, next) {
 
         // 500/503 = ฝั่ง Google ล่ม/คนใช้ล้น เป็นอาการชั่วคราว ลองซ้ำได้
         // รอเพิ่มขึ้นทีละขั้น (2 วิ แล้ว 4 วิ) ให้ฝั่งโน้นมีเวลาหายใจ
-        if (resp.status >= 500 && attempt < maxAttempts) {
+        if (resp.status >= 500 && attempt < maxAttempts && !outOfTime()) {
           await sleep(attempt * 2000)
           continue
         }
 
         if (resp.status === 429) {
           if (isDailyQuota(detail)) {
-            // โควตารายวันหมด รอกี่วินาทีก็ไม่ช่วย -> ข้ามไปรุ่นถัดไปเลย
-            sawDailyQuota = true
+            // โควตารายวันหมด รอกี่วินาทีก็ไม่ช่วย -> พักรุ่นนี้ไว้ แล้วข้ามไปรุ่นถัดไปเลย
+            dailyQuotaModels.add(model)
+            quotaCooldown.set(model, Date.now() + QUOTA_COOLDOWN_MS)
             break
           }
           const wait = parseRetryDelay(detail) ?? 2
           retryAfter = Math.max(retryAfter ?? 0, wait)
           // รอเองให้เฉพาะกรณีที่ Google บอกว่ารอแป๊บเดียว (ไม่เกิน 5 วิ) และรอแค่รอบเดียว
           // ถ้าต้องรอนานกว่านั้น ตอบกลับไปเลยว่า "รอกี่วินาที" ดีกว่าให้ผู้ใช้นั่งค้างหน้าจอ
-          if (attempt === 1 && maxAttempts > 1 && wait <= 5) {
+          if (attempt === 1 && maxAttempts > 1 && wait <= 5 && !outOfTime()) {
             await sleep(wait * 1000)
             continue
           }
@@ -273,6 +312,10 @@ export async function askTutor(req, res, next) {
     const hasQuota = statuses.includes(429)
     const badKey = statuses.length > 0 && statuses.every((s) => s === 400 || s === 403)
     const serverBusy = statuses.some((s) => s >= 500)
+    // บอกว่า "รอพรุ่งนี้" ได้ก็ต่อเมื่อ *ทุกรุ่น* ที่ลองโควตารายวันหมดจริง ๆ
+    // ถ้ามีรุ่นไหนแค่ 503 (ชั่วคราว) แปลว่ากดใหม่อีกทีอาจได้เลย ห้ามไล่ให้รอถึงพรุ่งนี้
+    const allDailyQuota =
+      triedModels.size > 0 && dailyQuotaModels.size === triedModels.size
 
     let message
     let status = 502
@@ -280,15 +323,16 @@ export async function askTutor(req, res, next) {
       // key ผิด/ถูกเพิกถอน/ยังไม่เปิดใช้ API — อันนี้ผู้ดูแลต้องไปแก้ที่ Render
       message = 'ครู AI ยังไม่พร้อมใช้งาน (ผู้ดูแลต้องตรวจสอบ GEMINI_API_KEY)'
       status = 503
-    } else if (sawDailyQuota) {
+    } else if (allDailyQuota) {
       message = 'วันนี้โควตาครู AI เต็มแล้ว (รุ่นฟรีมีจำกัดต่อวัน) ลองใหม่พรุ่งนี้ หรือดูเฉลยด้านบนไปก่อนนะ'
+      status = 429
+    } else if (serverBusy || sawTimeout) {
+      message = 'ระบบ AI ของ Google กำลังมีผู้ใช้หนาแน่น ลองกดใหม่อีกครั้งในสักครู่นะ'
+      status = 503
     } else if (hasQuota) {
       const secs = retryAfter ?? 30
       message = `ตอนนี้มีคนถามครู AI พร้อมกันเยอะ รอสัก ${secs} วินาทีแล้วกดถามใหม่นะ (ระหว่างนี้ดูเฉลยด้านบนไปก่อนได้)`
       status = 429
-    } else if (serverBusy) {
-      message = 'ระบบ AI ของ Google กำลังมีผู้ใช้หนาแน่น ลองกดใหม่อีกครั้งในสักครู่นะ'
-      status = 503
     } else if (sawEmptyReply) {
       message = 'ครู AI คิดคำตอบไม่จบ ลองกดถามใหม่อีกครั้งนะ (หรือดูเฉลยด้านบนไปก่อนได้)'
     } else {
