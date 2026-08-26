@@ -28,6 +28,28 @@ const MODEL_CANDIDATES = [
 const geminiUrl = (model, key) =>
   `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`
 
+// ---- กุญแจหลายดอก (กันโควตารายวันหมดกลางงาน) --------------------------------
+// โควตาฟรีของ Gemini นับ "ต่อโปรเจกต์" ไม่ใช่ต่อเว็บ พอหมดคือหมดทั้งวัน
+// จึงรองรับการใส่ key สำรองไว้ได้ ถ้าดอกแรกโควตาหมดจะสลับไปดอกถัดไปเอง
+//
+// ตั้งที่ Render > Environment ได้ 2 แบบ (จะใช้แบบไหนก็ได้):
+//   1) แยกตัวแปร: GEMINI_API_KEY, GEMINI_API_KEY_2, GEMINI_API_KEY_3
+//   2) ใส่รวมกันคั่นด้วยจุลภาค: GEMINI_API_KEY=key1,key2,key3
+//
+// ถ้ามีดอกเดียวก็ทำงานเหมือนเดิมทุกอย่าง ไม่ต้องแก้อะไร
+function loadKeys() {
+  return [
+    process.env.GEMINI_API_KEY,
+    process.env.GEMINI_API_KEY_2,
+    process.env.GEMINI_API_KEY_3,
+  ]
+    .filter(Boolean)
+    .flatMap((v) => String(v).split(','))   // รองรับแบบใส่รวมคั่นจุลภาค
+    .map((k) => k.trim())
+    .filter(Boolean)
+    .filter((k, i, a) => a.indexOf(k) === i) // ตัดค่าซ้ำ เผื่อวางผิดช่อง
+}
+
 const CHOICE_LABELS = ['ก', 'ข', 'ค', 'ง']
 
 // ---- ตัวช่วยเรื่องการลองใหม่ (retry) ----
@@ -38,12 +60,16 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 // (ทุกครั้งที่ยิงไปโดนรุ่นที่ไม่มีอยู่ = เสียเวลาเปล่า และทำให้ผู้ใช้รอนานขึ้น)
 const deadModels = new Set()
 
-// รุ่นที่โควตา "รายวัน" หมดไปแล้ว — พักไว้ชั่วคราวแล้วค่อยกลับมาลองใหม่
+// คู่ (กุญแจดอกที่ n + รุ่น) ที่โควตา "รายวัน" หมดไปแล้ว — พักไว้ชั่วคราวแล้วค่อยกลับมาลองใหม่
 // (ยิงไปก็ได้ 429 เหมือนเดิม เสียเวลาผู้ใช้เปล่า ๆ) เก็บเป็นเวลาที่พักครบ
+//
+// ต้องเก็บเป็นคู่ เพราะโควตาแยกกันตามกุญแจ — ดอกที่ 1 หมด ไม่ได้แปลว่าดอกที่ 2 หมดด้วย
 const quotaCooldown = new Map()
 const QUOTA_COOLDOWN_MS = 60 * 60 * 1000 // พัก 1 ชั่วโมงแล้วลองใหม่
 
-const isCoolingDown = (model) => (quotaCooldown.get(model) ?? 0) > Date.now()
+const slotKey = (keyIndex, model) => `${keyIndex}|${model}`
+const isCoolingDown = (keyIndex, model) =>
+  (quotaCooldown.get(slotKey(keyIndex, model)) ?? 0) > Date.now()
 
 // สาเหตุที่ Gemini ตอบว่างเพราะ "ตัวกรองเนื้อหา" ของ Google บล็อกไว้
 const BLOCKED_REASONS = new Set(['SAFETY', 'PROHIBITED_CONTENT', 'BLOCKLIST', 'RECITATION'])
@@ -130,8 +156,8 @@ function buildSystemInstruction(ctx = {}) {
 // body: { context: {...}, messages: [{ role: 'user' | 'model', text }] }
 export async function askTutor(req, res, next) {
   try {
-    const key = process.env.GEMINI_API_KEY
-    if (!key) {
+    const keys = loadKeys()
+    if (keys.length === 0) {
       const e = new Error('ครู AI ยังไม่พร้อมใช้งาน (ผู้ดูแลยังไม่ได้ตั้งค่า GEMINI_API_KEY)')
       e.status = 503
       throw e
@@ -176,20 +202,30 @@ export async function askTutor(req, res, next) {
     let sawEmptyReply = false   // Gemini ตอบ 200 แต่ข้อความว่าง (มักเกิดกับรุ่นที่มี thinking)
     let sawBlocked = false      // ตัวกรองเนื้อหาของ Google บล็อกคำตอบ
     let sawTimeout = false      // ยิงไปแล้วรอจนหมดเวลา (Gemini ช้าผิดปกติ)
-    const triedModels = new Set()      // รุ่นที่ได้ลองจริงรอบนี้
-    const dailyQuotaModels = new Set() // รุ่นที่โควตา "รายวัน" หมด
+    const triedSlots = new Set()      // คู่ (กุญแจ, รุ่น) ที่ได้ลองจริงรอบนี้
+    const dailyQuotaSlots = new Set() // คู่ (กุญแจ, รุ่น) ที่โควตา "รายวัน" หมด
 
     const startedAt = Date.now()
     const outOfTime = () => Date.now() - startedAt > TOTAL_DEADLINE_MS
 
-    // รายชื่อรุ่นที่จะลองรอบนี้
+    // วนกุญแจทีละดอก: ดอกแรกโควตาหมด -> สลับไปดอกถัดไปเอง
+    // (ถ้าตั้งไว้ดอกเดียว ลูปนี้ก็วนรอบเดียว ทำงานเหมือนเดิมทุกอย่าง)
+    for (let ki = 0; ki < keys.length; ki++) {
+    const key = keys[ki]
+    const keyTag = keys.length > 1 ? `key${ki + 1}/` : '' // ป้ายบอกว่าใช้กุญแจดอกไหน (ไม่ใช่ตัว key)
+
+    // รายชื่อรุ่นที่จะลองกับกุญแจดอกนี้
     //   - ตัดรุ่นที่ตาย 404 ทิ้ง
     //   - ตัดรุ่นที่โควตารายวันหมด (พักไว้ก่อน) ออกด้วย จะได้ไม่เสียเวลายิงไปโดน 429 ซ้ำ
     //   - ถ้าตัดจนไม่เหลือเลย ให้ไปถาม Google เอาเองว่าตอนนี้มีรุ่นอะไรใช้ได้บ้าง
-    let candidates = MODEL_CANDIDATES.filter((m) => !deadModels.has(m) && !isCoolingDown(m))
+    let candidates = MODEL_CANDIDATES.filter((m) => !deadModels.has(m) && !isCoolingDown(ki, m))
     let discoveryDone = false
     if (candidates.length === 0) {
-      // ไม่เหลือรุ่นเลย: ถ้าเป็นเพราะโควตาหมดชั่วคราว ให้ยอมลองรุ่นเดิมอีกที ดีกว่าไม่ทำอะไรเลย
+      // กุญแจดอกนี้ไม่เหลือรุ่นเลยเพราะโควตาหมด -> ข้ามไปลองกุญแจดอกถัดไปก่อน
+      // (จะได้ไม่เสียเวลายิงไปโดน 429 ซ้ำทั้งที่รู้อยู่แล้ว)
+      if (ki < keys.length - 1) continue
+
+      // ดอกสุดท้ายแล้ว: ยอมลองรุ่นเดิมอีกที ดีกว่าไม่ทำอะไรเลย
       candidates = MODEL_CANDIDATES.filter((m) => !deadModels.has(m))
       if (candidates.length === 0) {
         candidates = await discoverModels(key)
@@ -210,7 +246,7 @@ export async function askTutor(req, res, next) {
       // 503 (ฝั่ง Google คนใช้ล้น) เป็นอาการชั่วคราวที่เจอบ่อยมากในโควตาฟรี
       // ลองซ้ำอีกไม่กี่วินาทีมักผ่าน — ดีกว่าปล่อยให้ผู้ใช้เห็น error ทั้งที่ระบบปกติดี
       const maxAttempts = qi === 0 ? 3 : 1
-      triedModels.add(model)
+      triedSlots.add(slotKey(ki, model))
 
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         let resp
@@ -226,8 +262,8 @@ export async function askTutor(req, res, next) {
           // ส่วนใหญ่คือ TimeoutError (Gemini ช้าเกินรอ) หรือเน็ตสะดุด
           sawTimeout = true
           console.error(`Gemini (${model}) ไม่ตอบ:`, err.name)
-          tried.push(`${model}#${attempt}: ${err.name}`)
-          codes.push(`${model}:${err.name === 'TimeoutError' ? 'timeout' : 'neterr'}`)
+          tried.push(`${keyTag}${model}#${attempt}: ${err.name}`)
+          codes.push(`${keyTag}${model}:${err.name === 'TimeoutError' ? 'timeout' : 'neterr'}`)
           if (attempt < maxAttempts && !outOfTime()) continue
           break
         }
@@ -238,15 +274,15 @@ export async function askTutor(req, res, next) {
             ?.map((p) => p.text || '')
             .join('')
             .trim()
-          if (reply) return res.json({ ok: true, reply, model })
+          if (reply) return res.json({ ok: true, reply, model, key: ki + 1 })
 
           // ตอบ 200 แต่ไม่มีข้อความ — สาเหตุที่พบบ่อย:
           //   MAX_TOKENS         = โควตา token หมดไปกับ "ส่วนคิด" (thinking) ก่อนได้เขียนคำตอบ
           //   SAFETY / PROHIBITED_CONTENT = ตัวกรองเนื้อหาของ Google บล็อก
           const reason = data?.candidates?.[0]?.finishReason || 'ไม่ทราบสาเหตุ'
           sawEmptyReply = true
-          tried.push(`${model}#${attempt}: ตอบว่าง (finishReason=${reason})`)
-          codes.push(`${model}:empty/${reason}`)
+          tried.push(`${keyTag}${model}#${attempt}: ตอบว่าง (finishReason=${reason})`)
+          codes.push(`${keyTag}${model}:empty/${reason}`)
 
           // MAX_TOKENS = เพิ่มเพดาน token แล้วลองใหม่ทันที มีโอกาสได้คำตอบ
           if (reason === 'MAX_TOKENS' && attempt < maxAttempts) {
@@ -267,9 +303,9 @@ export async function askTutor(req, res, next) {
 
         const detail = await resp.text().catch(() => '')
         console.error(`Gemini (${model}) error:`, resp.status, detail)
-        tried.push(`${model}#${attempt}: ${resp.status} ${detail.slice(0, 200)}`)
+        tried.push(`${keyTag}${model}#${attempt}: ${resp.status} ${detail.slice(0, 200)}`)
         statuses.push(resp.status)
-        codes.push(`${model}:${resp.status}`)
+        codes.push(`${keyTag}${model}:${resp.status}`)
 
         if (resp.status === 404) {
           // ไม่มีรุ่นนี้แล้ว (Google เลิกให้บริการ/พิมพ์ชื่อผิด) — จำไว้ ไม่ต้องลองอีก
@@ -287,8 +323,8 @@ export async function askTutor(req, res, next) {
         if (resp.status === 429) {
           if (isDailyQuota(detail)) {
             // โควตารายวันหมด รอกี่วินาทีก็ไม่ช่วย -> พักรุ่นนี้ไว้ แล้วข้ามไปรุ่นถัดไปเลย
-            dailyQuotaModels.add(model)
-            quotaCooldown.set(model, Date.now() + QUOTA_COOLDOWN_MS)
+            dailyQuotaSlots.add(slotKey(ki, model))
+            quotaCooldown.set(slotKey(ki, model), Date.now() + QUOTA_COOLDOWN_MS)
             break
           }
           const wait = parseRetryDelay(detail) ?? 2
@@ -317,8 +353,11 @@ export async function askTutor(req, res, next) {
       }
     }
 
-    // ลองครบทุกรุ่นแล้วยังไม่ได้ (รายละเอียดอยู่ใน log ของเซิร์ฟเวอร์)
-    console.error('Gemini ใช้ไม่ได้ทุกรุ่น:', tried.join(' | '))
+    if (outOfTime()) break // หมดเวลาแล้ว ไม่ต้องลองกุญแจดอกถัดไป
+    } // จบลูปกุญแจ
+
+    // ลองครบทุกกุญแจทุกรุ่นแล้วยังไม่ได้ (รายละเอียดอยู่ใน log ของเซิร์ฟเวอร์)
+    console.error('Gemini ใช้ไม่ได้เลย:', tried.join(' | '))
 
     // เลือกข้อความให้ตรงกับสาเหตุจริง — สำคัญมาก เพราะข้อความผิดทำให้เข้าใจว่า
     // "key หมดอายุ/เว็บพัง" ทั้งที่จริงแค่กดถี่เกินไปแล้วรอแป๊บเดียวก็ใช้ได้
@@ -328,7 +367,7 @@ export async function askTutor(req, res, next) {
     // บอกว่า "รอพรุ่งนี้" ได้ก็ต่อเมื่อ *ทุกรุ่น* ที่ลองโควตารายวันหมดจริง ๆ
     // ถ้ามีรุ่นไหนแค่ 503 (ชั่วคราว) แปลว่ากดใหม่อีกทีอาจได้เลย ห้ามไล่ให้รอถึงพรุ่งนี้
     const allDailyQuota =
-      triedModels.size > 0 && dailyQuotaModels.size === triedModels.size
+      triedSlots.size > 0 && dailyQuotaSlots.size === triedSlots.size
 
     let message
     let status = 502
