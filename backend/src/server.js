@@ -64,12 +64,53 @@ app.use('/api/tutor', tutorRoutes)   // ครู AI "จอมปราชญ�
 // ---- ตัวจัดการ error รวม (ต้องอยู่ท้ายสุด หลังทุก route) ----------------------
 app.use(errorHandler)
 
+// ---- กันเซิร์ฟเวอร์หลับ (เฉพาะตอนรันบน Render) -------------------------------
+// ปัญหา: Render แพลนฟรีจะ "ปิดเครื่อง" เองเมื่อไม่มีคนเรียกนาน 15 นาที
+//        คนที่เข้าเว็บคนถัดไปจึงต้องรอเครื่องบูตใหม่ ~30 วินาที (เหมือนเว็บค้าง)
+//        ตอนเดโมให้กรรมการดูแล้วค้าง 30 วินาที = เสียคะแนนฟรี ๆ
+//
+// วิธีแก้: ให้เซิร์ฟเวอร์ยิง /api/health หาตัวเองทุก 14 นาที Render จึงนับว่า
+//        "ยังมีคนใช้อยู่" แล้วไม่ปิดเครื่อง
+//
+// ข้อควรรู้: แพลนฟรีของ Render ให้เวลารันฟรี 750 ชั่วโมง/เดือน
+//        ถ้าไม่หลับเลยจะใช้ราว 720 ชม./เดือน (ยังไม่เกิน) แต่ถ้ามีบริการอื่น
+//        ในบัญชีเดียวกันด้วยอาจเกินได้ -> ปิดฟีเจอร์นี้ได้โดยตั้ง KEEP_AWAKE=false
+//
+// RENDER_EXTERNAL_URL = Render ใส่ให้เองอัตโนมัติ (บนเครื่องเราจะไม่มีค่านี้
+//        ฟีเจอร์นี้จึงไม่ทำงานตอนพัฒนา ซึ่งถูกต้องแล้ว)
+const KEEP_AWAKE_MINUTES = 14
+
+function startKeepAwake() {
+  const url = process.env.RENDER_EXTERNAL_URL
+  if (!url) return                                   // ไม่ได้รันบน Render -> ไม่ต้องทำ
+  if (process.env.KEEP_AWAKE === 'false') {
+    console.log('ปิดระบบกันเซิร์ฟเวอร์หลับไว้ (KEEP_AWAKE=false)')
+    return
+  }
+
+  const target = `${url.replace(/\/$/, '')}/api/health`
+  console.log(`เปิดระบบกันเซิร์ฟเวอร์หลับ: ยิง ${target} ทุก ${KEEP_AWAKE_MINUTES} นาที`)
+
+  const timer = setInterval(async () => {
+    try {
+      const res = await fetch(target)
+      if (!res.ok) console.warn('ping กันหลับได้สถานะ', res.status)
+    } catch (err) {
+      // ping ไม่สำเร็จไม่ใช่เรื่องคอขาดบาดตาย แค่บันทึกไว้ อย่าให้เซิร์ฟเวอร์ล้ม
+      console.warn('ping กันหลับไม่สำเร็จ:', err.message)
+    }
+  }, KEEP_AWAKE_MINUTES * 60 * 1000)
+
+  timer.unref?.() // อย่าให้ตัวจับเวลานี้ขวางการปิดเซิร์ฟเวอร์ตอน deploy รอบใหม่
+}
+
 // ---- เริ่มเซิร์ฟเวอร์ --------------------------------------------------------
 async function start() {
   try {
     await connectDB(process.env.MONGODB_URI) // เชื่อมต่อ MongoDB Atlas ก่อนเริ่มรับ request
     app.listen(PORT, () => {
       console.log(`TidSure API พร้อมทำงานที่ http://localhost:${PORT}`)
+      startKeepAwake()
     })
   } catch (err) {
     console.error('เริ่มเซิร์ฟเวอร์ไม่สำเร็จ:', err)
