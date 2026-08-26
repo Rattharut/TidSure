@@ -15,12 +15,14 @@
 
 // รุ่นที่จะลองใช้ตามลำดับ — บางบัญชี/บางโปรเจกต์ไม่มีโควตาฟรีของบางรุ่น
 // จึงลองไล่ไปเรื่อย ๆ จนเจอรุ่นที่ตอบได้ (รุ่นแรกที่ตั้งใน env จะถูกลองก่อน)
+//
+// ชื่อที่ลงท้ายด้วย -latest คือชื่อถาวรที่ Google ชี้ไปยังรุ่นล่าสุดให้เอง
+// จึงไม่พังเวลา Google ออกเวอร์ชันใหม่ (ต่างจากชื่อที่ระบุเลขเวอร์ชันตายตัว
+// อย่าง gemini-2.0-flash ซึ่งตรวจเมื่อ 2026-08-26 แล้วพบว่าตอบ 404 = เลิกให้บริการแล้ว)
 const MODEL_CANDIDATES = [
-  process.env.GEMINI_MODEL, // ถ้าตั้ง env ไว้ ลองอันนี้ก่อน
-  'gemini-flash-latest',    // ทดสอบแล้วมีโควตาฟรีจริง -> ลองก่อนเพื่อน
-  'gemini-2.5-flash',
-  'gemini-2.0-flash',
-  'gemini-2.5-flash-lite',
+  process.env.GEMINI_MODEL,  // ถ้าตั้ง env ไว้ ลองอันนี้ก่อน
+  'gemini-flash-latest',     // ทดสอบแล้วใช้ได้จริงกับ key ของเรา -> ลองก่อนเพื่อน
+  'gemini-flash-lite-latest',
 ].filter(Boolean).filter((m, i, a) => a.indexOf(m) === i) // ตัดค่าซ้ำ
 
 const geminiUrl = (model, key) =>
@@ -35,6 +37,32 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 // รุ่นที่ Google บอกว่า "ไม่มีรุ่นนี้แล้ว" (404) — จำไว้ไม่ต้องลองซ้ำอีกในรอบชีวิตของเซิร์ฟเวอร์
 // (ทุกครั้งที่ยิงไปโดนรุ่นที่ไม่มีอยู่ = เสียเวลาเปล่า และทำให้ผู้ใช้รอนานขึ้น)
 const deadModels = new Set()
+
+// ---- ตาข่ายกันตก: ถามรายชื่อรุ่นจาก Google เอง ----
+// ใช้เมื่อรุ่นที่เราเขียนไว้ในโค้ดตาย 404 หมดทุกตัว (Google เปลี่ยนชื่อรุ่นอีกรอบ)
+// จะได้ไม่ต้องรอคนมาแก้โค้ด — เว็บหาเองได้ว่าตอนนี้มีรุ่นอะไรให้ใช้บ้าง
+// ถามครั้งเดียวแล้วจำไว้ (ไม่ยิงซ้ำทุก request)
+let discovered = null
+
+async function discoverModels(key) {
+  if (discovered) return discovered
+  try {
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`)
+    if (!r.ok) return (discovered = [])
+    const data = await r.json()
+    discovered = (data.models || [])
+      .filter((m) => (m.supportedGenerationMethods || []).includes('generateContent'))
+      .map((m) => String(m.name || '').replace(/^models\//, ''))
+      // เอาเฉพาะรุ่น flash (เร็วและอยู่ในโควตาฟรี) และเลี่ยงรุ่นทดลองที่ยังไม่นิ่ง
+      .filter((n) => /flash/i.test(n) && !/exp|preview|thinking|vision|image|tts/i.test(n))
+      .slice(0, 3)
+    console.log('ค้นรุ่น Gemini ที่ใช้ได้เอง:', discovered.join(', ') || '(ไม่พบ)')
+    return discovered
+  } catch (err) {
+    console.warn('ขอรายชื่อรุ่น Gemini ไม่สำเร็จ:', err.message)
+    return (discovered = [])
+  }
+}
 
 // โควตาฟรีของ Gemini จำกัด "จำนวนครั้งต่อนาที" ไว้ต่ำมาก
 // พอถูกกดถี่ ๆ จะตอบ 429 ทันที ทั้งที่ key ยังใช้ได้ปกติ
@@ -133,12 +161,27 @@ export async function askTutor(req, res, next) {
     let sawDailyQuota = false   // เจอโควตา "รายวัน" หมดหรือเปล่า
     let sawEmptyReply = false   // Gemini ตอบ 200 แต่ข้อความว่าง (มักเกิดกับรุ่นที่มี thinking)
 
-    for (const model of MODEL_CANDIDATES) {
+    // รายชื่อรุ่นที่จะลองรอบนี้ — ถ้ารุ่นที่เขียนไว้ในโค้ดตาย 404 หมดแล้ว
+    // ให้ไปถาม Google เอาเองว่าตอนนี้มีรุ่นอะไรใช้ได้บ้าง
+    let candidates = MODEL_CANDIDATES.filter((m) => !deadModels.has(m))
+    let discoveryDone = false
+    if (candidates.length === 0) {
+      candidates = await discoverModels(key)
+      discoveryDone = true
+    }
+
+    // ใช้ queue แทน for...of ธรรมดา เพราะระหว่างวนอาจมีการ "เติมรุ่นใหม่" เข้ามาท้ายแถว
+    // (กรณีรุ่นที่เขียนไว้ตาย 404 หมดกลางคัน แล้วไปขอรายชื่อรุ่นจาก Google มาต่อ)
+    const queue = [...candidates]
+
+    for (let qi = 0; qi < queue.length; qi++) {
+      const model = queue[qi]
       if (deadModels.has(model)) continue // รุ่นนี้เคยตอบ 404 มาแล้ว ข้ามไปเลย
 
-      // รุ่นแรกคือรุ่นที่รู้ว่ามีโควตาฟรีจริง จึงยอมลองซ้ำให้อีก 1 ครั้ง
-      // (429 ของโควตาฟรีมักเป็นแค่ "เรียกถี่เกินไปในนาทีนี้" รอไม่กี่วินาทีก็ได้แล้ว)
-      const maxAttempts = model === MODEL_CANDIDATES[0] ? 2 : 1
+      // รุ่นแรกคือรุ่นหลักที่รู้ว่าใช้ได้จริง จึงยอมลองซ้ำให้ถึง 3 ครั้ง
+      // 503 (ฝั่ง Google คนใช้ล้น) เป็นอาการชั่วคราวที่เจอบ่อยมากในโควตาฟรี
+      // ลองซ้ำอีกไม่กี่วินาทีมักผ่าน — ดีกว่าปล่อยให้ผู้ใช้เห็น error ทั้งที่ระบบปกติดี
+      const maxAttempts = qi === 0 ? 3 : 1
 
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         const resp = await fetch(geminiUrl(model, key), {
@@ -184,8 +227,9 @@ export async function askTutor(req, res, next) {
         }
 
         // 500/503 = ฝั่ง Google ล่ม/คนใช้ล้น เป็นอาการชั่วคราว ลองซ้ำได้
+        // รอเพิ่มขึ้นทีละขั้น (2 วิ แล้ว 4 วิ) ให้ฝั่งโน้นมีเวลาหายใจ
         if (resp.status >= 500 && attempt < maxAttempts) {
-          await sleep(2000)
+          await sleep(attempt * 2000)
           continue
         }
 
@@ -197,9 +241,9 @@ export async function askTutor(req, res, next) {
           }
           const wait = parseRetryDelay(detail) ?? 2
           retryAfter = Math.max(retryAfter ?? 0, wait)
-          // รอเองให้เฉพาะกรณีที่ Googleบอกว่ารอแป๊บเดียว (ไม่เกิน 5 วิ)
+          // รอเองให้เฉพาะกรณีที่ Google บอกว่ารอแป๊บเดียว (ไม่เกิน 5 วิ) และรอแค่รอบเดียว
           // ถ้าต้องรอนานกว่านั้น ตอบกลับไปเลยว่า "รอกี่วินาที" ดีกว่าให้ผู้ใช้นั่งค้างหน้าจอ
-          if (attempt < maxAttempts && wait <= 5) {
+          if (attempt === 1 && maxAttempts > 1 && wait <= 5) {
             await sleep(wait * 1000)
             continue
           }
@@ -207,6 +251,17 @@ export async function askTutor(req, res, next) {
         }
 
         break // error อื่น (400 key ผิด / 403 ฯลฯ) ลองซ้ำไปก็เท่านั้น -> ไปรุ่นถัดไป
+      }
+
+      // มาถึงรุ่นสุดท้ายในแถวแล้วยังไม่ได้ และรุ่นที่มีทั้งหมด "ตาย 404" หมดจริง ๆ
+      // -> ไปขอรายชื่อรุ่นปัจจุบันจาก Google มาต่อท้ายแถว แล้ววนต่อ
+      //    (Google เปลี่ยนชื่อรุ่นเมื่อไหร่ เว็บก็ยังใช้งานได้เองโดยไม่ต้องรอแก้โค้ด)
+      const isLast = qi === queue.length - 1
+      if (isLast && !discoveryDone && queue.every((m) => deadModels.has(m))) {
+        discoveryDone = true
+        for (const m of await discoverModels(key)) {
+          if (!queue.includes(m) && !deadModels.has(m)) queue.push(m)
+        }
       }
     }
 
