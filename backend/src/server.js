@@ -51,8 +51,18 @@ app.use(express.json())
 
 // ---- เส้นทางตรวจสุขภาพเซิร์ฟเวอร์ (health check) -----------------------------
 // ลองเปิด http://localhost:5000/api/health เพื่อเช็คว่าเซิร์ฟเวอร์ทำงานไหม
+//
+// commit = รหัสโค้ดเวอร์ชันที่กำลังรันอยู่ (Render ใส่ RENDER_GIT_COMMIT ให้เอง)
+// มีไว้เช็คว่า "โค้ดที่เพิ่ง push ขึ้นไป deploy เสร็จหรือยัง" โดยไม่ต้องเปิดหน้า Render
+const START_TIME = Date.now()
+
 app.get('/api/health', (req, res) => {
-  res.json({ ok: true, message: 'TidSure API กำลังทำงาน (โครงเริ่มต้น)' })
+  res.json({
+    ok: true,
+    message: 'TidSure API กำลังทำงาน',
+    commit: (process.env.RENDER_GIT_COMMIT || 'local').slice(0, 7),
+    uptimeSec: Math.round((Date.now() - START_TIME) / 1000),
+  })
 })
 
 // ---- ผูกกลุ่ม routes ต่าง ๆ --------------------------------------------------

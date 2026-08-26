@@ -128,8 +128,10 @@ export async function askTutor(req, res, next) {
     // ลองไล่ทีละรุ่นจนกว่าจะมีรุ่นไหนตอบได้
     const tried = []            // ไว้เขียน log สรุปตอนจบ
     const statuses = []         // เก็บเฉพาะรหัสสถานะ ไว้ตัดสินใจว่าจะบอกผู้ใช้ว่าอะไร
+    const codes = []            // สรุปสั้น ๆ "รุ่น:สถานะ" ส่งกลับไปให้ช่วยหาสาเหตุได้
     let retryAfter = null       // Google บอกให้รอกี่วินาที (ถ้าบอกมา)
     let sawDailyQuota = false   // เจอโควตา "รายวัน" หมดหรือเปล่า
+    let sawEmptyReply = false   // Gemini ตอบ 200 แต่ข้อความว่าง (มักเกิดกับรุ่นที่มี thinking)
 
     for (const model of MODEL_CANDIDATES) {
       if (deadModels.has(model)) continue // รุ่นนี้เคยตอบ 404 มาแล้ว ข้ามไปเลย
@@ -152,19 +154,39 @@ export async function askTutor(req, res, next) {
             .join('')
             .trim()
           if (reply) return res.json({ ok: true, reply, model })
-          tried.push(`${model}: ตอบว่าง`)
+
+          // ตอบ 200 แต่ไม่มีข้อความ — สาเหตุที่พบบ่อย:
+          //   MAX_TOKENS = โควตา token หมดไปกับ "ส่วนคิด" (thinking) ก่อนจะได้เขียนคำตอบ
+          //   SAFETY     = ตัวกรองเนื้อหาบล็อก
+          const reason = data?.candidates?.[0]?.finishReason || 'ไม่ทราบสาเหตุ'
+          sawEmptyReply = true
+          tried.push(`${model}#${attempt}: ตอบว่าง (finishReason=${reason})`)
+          codes.push(`${model}:empty/${reason}`)
+
+          // MAX_TOKENS = เพิ่มเพดาน token แล้วลองใหม่ทันที มีโอกาสได้คำตอบ
+          if (reason === 'MAX_TOKENS' && attempt < maxAttempts) {
+            payload.generationConfig.maxOutputTokens = 8192
+            continue
+          }
           break // รุ่นนี้ตอบว่าง ลองรุ่นถัดไป
         }
 
         const detail = await resp.text().catch(() => '')
         console.error(`Gemini (${model}) error:`, resp.status, detail)
-        tried.push(`${model}#${attempt}: ${resp.status} ${detail.slice(0, 120)}`)
+        tried.push(`${model}#${attempt}: ${resp.status} ${detail.slice(0, 200)}`)
         statuses.push(resp.status)
+        codes.push(`${model}:${resp.status}`)
 
         if (resp.status === 404) {
           // ไม่มีรุ่นนี้แล้ว (Google เลิกให้บริการ/พิมพ์ชื่อผิด) — จำไว้ ไม่ต้องลองอีก
           deadModels.add(model)
           break
+        }
+
+        // 500/503 = ฝั่ง Google ล่ม/คนใช้ล้น เป็นอาการชั่วคราว ลองซ้ำได้
+        if (resp.status >= 500 && attempt < maxAttempts) {
+          await sleep(2000)
+          continue
         }
 
         if (resp.status === 429) {
@@ -195,6 +217,7 @@ export async function askTutor(req, res, next) {
     // "key หมดอายุ/เว็บพัง" ทั้งที่จริงแค่กดถี่เกินไปแล้วรอแป๊บเดียวก็ใช้ได้
     const hasQuota = statuses.includes(429)
     const badKey = statuses.length > 0 && statuses.every((s) => s === 400 || s === 403)
+    const serverBusy = statuses.some((s) => s >= 500)
 
     let message
     let status = 502
@@ -208,14 +231,20 @@ export async function askTutor(req, res, next) {
       const secs = retryAfter ?? 30
       message = `ตอนนี้มีคนถามครู AI พร้อมกันเยอะ รอสัก ${secs} วินาทีแล้วกดถามใหม่นะ (ระหว่างนี้ดูเฉลยด้านบนไปก่อนได้)`
       status = 429
+    } else if (serverBusy) {
+      message = 'ระบบ AI ของ Google กำลังมีผู้ใช้หนาแน่น ลองกดใหม่อีกครั้งในสักครู่นะ'
+      status = 503
+    } else if (sawEmptyReply) {
+      message = 'ครู AI คิดคำตอบไม่จบ ลองกดถามใหม่อีกครั้งนะ (หรือดูเฉลยด้านบนไปก่อนได้)'
     } else {
       message = 'ครู AI ไม่ว่างชั่วคราว ลองใหม่อีกครั้ง หรือดูเฉลยด้านบนก่อนนะ'
     }
 
-    const e = new Error(message)
-    e.status = status
+    // ตอบกลับเองเลย ไม่ผ่าน errorHandler เพราะอยากแนบ codes ไปด้วย
+    // codes = สรุปสั้น ๆ ว่ารุ่นไหนตอบสถานะอะไร (ไม่มีข้อมูลลับ ไม่มี API key)
+    // มีไว้ให้ตรวจสาเหตุได้จากภายนอกโดยไม่ต้องเปิด log ของ Render
     if (retryAfter) res.set('Retry-After', String(retryAfter))
-    throw e
+    return res.status(status).json({ ok: false, message, codes })
   } catch (err) {
     next(err) // ส่งต่อให้ errorHandler ตอบ JSON รูปแบบเดียวกับ API อื่น
   }
