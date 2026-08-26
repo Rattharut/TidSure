@@ -28,6 +28,29 @@ const geminiUrl = (model, key) =>
 
 const CHOICE_LABELS = ['ก', 'ข', 'ค', 'ง']
 
+// ---- ตัวช่วยเรื่องการลองใหม่ (retry) ----
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+
+// รุ่นที่ Google บอกว่า "ไม่มีรุ่นนี้แล้ว" (404) — จำไว้ไม่ต้องลองซ้ำอีกในรอบชีวิตของเซิร์ฟเวอร์
+// (ทุกครั้งที่ยิงไปโดนรุ่นที่ไม่มีอยู่ = เสียเวลาเปล่า และทำให้ผู้ใช้รอนานขึ้น)
+const deadModels = new Set()
+
+// โควตาฟรีของ Gemini จำกัด "จำนวนครั้งต่อนาที" ไว้ต่ำมาก
+// พอถูกกดถี่ ๆ จะตอบ 429 ทันที ทั้งที่ key ยังใช้ได้ปกติ
+// Google มักบอกมาด้วยว่าให้รอกี่วินาที -> ดึงตัวเลขนั้นออกมาใช้
+function parseRetryDelay(detail) {
+  const m = /"retryDelay"\s*:\s*"(\d+(?:\.\d+)?)s"/.exec(detail || '')
+  if (m) return Math.min(Math.ceil(Number(m[1])), 60)
+  return null
+}
+
+// นับว่าโควตาที่หมดเป็นแบบ "ต่อวัน" หรือแค่ "ต่อนาที"
+// ต่อวัน = รอพรุ่งนี้  /  ต่อนาที = รอไม่กี่วินาทีก็กลับมาใช้ได้
+function isDailyQuota(detail) {
+  return /PerDay|per day|GenerateRequestsPerDay/i.test(detail || '')
+}
+
 // ---- สร้าง "คำสั่งระบบ" ที่กำหนดบุคลิกครู + ยัดเฉลยจริงเป็นความจริงอ้างอิง ----
 // สำคัญ: ส่งเฉลย/วิธีทำที่เราเขียนไว้เข้าไปด้วย เพื่อให้ AI อธิบาย "ต่อยอด"
 //        จากของจริง ไม่ใช่เดาเอง (กัน AI มั่วคำตอบผิด)
@@ -103,42 +126,95 @@ export async function askTutor(req, res, next) {
     }
 
     // ลองไล่ทีละรุ่นจนกว่าจะมีรุ่นไหนตอบได้
-    const tried = []
+    const tried = []            // ไว้เขียน log สรุปตอนจบ
+    const statuses = []         // เก็บเฉพาะรหัสสถานะ ไว้ตัดสินใจว่าจะบอกผู้ใช้ว่าอะไร
+    let retryAfter = null       // Google บอกให้รอกี่วินาที (ถ้าบอกมา)
+    let sawDailyQuota = false   // เจอโควตา "รายวัน" หมดหรือเปล่า
+
     for (const model of MODEL_CANDIDATES) {
-      const resp = await fetch(geminiUrl(model, key), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
+      if (deadModels.has(model)) continue // รุ่นนี้เคยตอบ 404 มาแล้ว ข้ามไปเลย
 
-      if (resp.ok) {
-        const data = await resp.json()
-        const reply = data?.candidates?.[0]?.content?.parts
-          ?.map((p) => p.text || '')
-          .join('')
-          .trim()
-        if (reply) return res.json({ ok: true, reply, model })
-        tried.push(`${model}: ตอบว่าง`)
-        continue
+      // รุ่นแรกคือรุ่นที่รู้ว่ามีโควตาฟรีจริง จึงยอมลองซ้ำให้อีก 1 ครั้ง
+      // (429 ของโควตาฟรีมักเป็นแค่ "เรียกถี่เกินไปในนาทีนี้" รอไม่กี่วินาทีก็ได้แล้ว)
+      const maxAttempts = model === MODEL_CANDIDATES[0] ? 2 : 1
+
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        const resp = await fetch(geminiUrl(model, key), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+
+        if (resp.ok) {
+          const data = await resp.json()
+          const reply = data?.candidates?.[0]?.content?.parts
+            ?.map((p) => p.text || '')
+            .join('')
+            .trim()
+          if (reply) return res.json({ ok: true, reply, model })
+          tried.push(`${model}: ตอบว่าง`)
+          break // รุ่นนี้ตอบว่าง ลองรุ่นถัดไป
+        }
+
+        const detail = await resp.text().catch(() => '')
+        console.error(`Gemini (${model}) error:`, resp.status, detail)
+        tried.push(`${model}#${attempt}: ${resp.status} ${detail.slice(0, 120)}`)
+        statuses.push(resp.status)
+
+        if (resp.status === 404) {
+          // ไม่มีรุ่นนี้แล้ว (Google เลิกให้บริการ/พิมพ์ชื่อผิด) — จำไว้ ไม่ต้องลองอีก
+          deadModels.add(model)
+          break
+        }
+
+        if (resp.status === 429) {
+          if (isDailyQuota(detail)) {
+            // โควตารายวันหมด รอกี่วินาทีก็ไม่ช่วย -> ข้ามไปรุ่นถัดไปเลย
+            sawDailyQuota = true
+            break
+          }
+          const wait = parseRetryDelay(detail) ?? 2
+          retryAfter = Math.max(retryAfter ?? 0, wait)
+          // รอเองให้เฉพาะกรณีที่ Googleบอกว่ารอแป๊บเดียว (ไม่เกิน 5 วิ)
+          // ถ้าต้องรอนานกว่านั้น ตอบกลับไปเลยว่า "รอกี่วินาที" ดีกว่าให้ผู้ใช้นั่งค้างหน้าจอ
+          if (attempt < maxAttempts && wait <= 5) {
+            await sleep(wait * 1000)
+            continue
+          }
+          break
+        }
+
+        break // error อื่น (400 key ผิด / 403 ฯลฯ) ลองซ้ำไปก็เท่านั้น -> ไปรุ่นถัดไป
       }
-
-      const detail = await resp.text().catch(() => '')
-      console.error(`Gemini (${model}) error:`, resp.status, detail)
-      tried.push(`${model}: ${resp.status} ${detail.slice(0, 120)}`)
-      // 429/404 = รุ่นนี้ไม่มีโควตา/ไม่มีรุ่น -> ลองรุ่นถัดไป
-      // error อื่น (เช่น 400 key ผิด) ก็ลองรุ่นถัดไปเผื่อได้ แล้วค่อยสรุปตอนจบ
     }
 
     // ลองครบทุกรุ่นแล้วยังไม่ได้ (รายละเอียดอยู่ใน log ของเซิร์ฟเวอร์)
     console.error('Gemini ใช้ไม่ได้ทุกรุ่น:', tried.join(' | '))
-    // ถ้าทุกรุ่นเป็น 429 = โควตาฟรีรายวันหมด บอกผู้ใช้ให้ชัด (จะได้ไม่งงว่าพัง)
-    const allQuota = tried.length > 0 && tried.every((t) => t.includes(': 429'))
-    const e = new Error(
-      allQuota
-        ? 'วันนี้โควตาครู AI เต็มแล้ว (รุ่นฟรีมีจำกัดต่อวัน) ลองใหม่พรุ่งนี้ หรือดูเฉลยด้านบนไปก่อนนะ'
-        : 'ครู AI ไม่ว่างชั่วคราว ลองใหม่อีกครั้ง หรือดูเฉลยด้านบนก่อนนะ'
-    )
-    e.status = 502
+
+    // เลือกข้อความให้ตรงกับสาเหตุจริง — สำคัญมาก เพราะข้อความผิดทำให้เข้าใจว่า
+    // "key หมดอายุ/เว็บพัง" ทั้งที่จริงแค่กดถี่เกินไปแล้วรอแป๊บเดียวก็ใช้ได้
+    const hasQuota = statuses.includes(429)
+    const badKey = statuses.length > 0 && statuses.every((s) => s === 400 || s === 403)
+
+    let message
+    let status = 502
+    if (badKey) {
+      // key ผิด/ถูกเพิกถอน/ยังไม่เปิดใช้ API — อันนี้ผู้ดูแลต้องไปแก้ที่ Render
+      message = 'ครู AI ยังไม่พร้อมใช้งาน (ผู้ดูแลต้องตรวจสอบ GEMINI_API_KEY)'
+      status = 503
+    } else if (sawDailyQuota) {
+      message = 'วันนี้โควตาครู AI เต็มแล้ว (รุ่นฟรีมีจำกัดต่อวัน) ลองใหม่พรุ่งนี้ หรือดูเฉลยด้านบนไปก่อนนะ'
+    } else if (hasQuota) {
+      const secs = retryAfter ?? 30
+      message = `ตอนนี้มีคนถามครู AI พร้อมกันเยอะ รอสัก ${secs} วินาทีแล้วกดถามใหม่นะ (ระหว่างนี้ดูเฉลยด้านบนไปก่อนได้)`
+      status = 429
+    } else {
+      message = 'ครู AI ไม่ว่างชั่วคราว ลองใหม่อีกครั้ง หรือดูเฉลยด้านบนก่อนนะ'
+    }
+
+    const e = new Error(message)
+    e.status = status
+    if (retryAfter) res.set('Retry-After', String(retryAfter))
     throw e
   } catch (err) {
     next(err) // ส่งต่อให้ errorHandler ตอบ JSON รูปแบบเดียวกับ API อื่น
