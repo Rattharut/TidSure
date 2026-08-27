@@ -20,9 +20,13 @@
 // จึงไม่พังเวลา Google ออกเวอร์ชันใหม่ (ต่างจากชื่อที่ระบุเลขเวอร์ชันตายตัว
 // อย่าง gemini-2.0-flash ซึ่งตรวจเมื่อ 2026-08-26 แล้วพบว่าตอบ 404 = เลิกให้บริการแล้ว)
 const MODEL_CANDIDATES = [
-  process.env.GEMINI_MODEL,  // ถ้าตั้ง env ไว้ ลองอันนี้ก่อน
-  'gemini-flash-latest',     // ทดสอบแล้วใช้ได้จริงกับ key ของเรา -> ลองก่อนเพื่อน
+  process.env.GEMINI_MODEL,   // ถ้าตั้ง env ไว้ ลองอันนี้ก่อน
+  // วัดจริงเมื่อ 2026-08-26: gemini-flash-latest ตอบ 503 "high demand" แทบทุกครั้ง
+  // (ต้องลองซ้ำ 3 รอบ = เสียเวลา 13-17 วินาที) ส่วน lite ตอบฉลุยใน ~1 วินาที
+  // งานของเราคือ "อธิบายเฉลยสั้น ๆ" ซึ่ง lite ทำได้ดีอยู่แล้ว จึงให้ lite นำ
+  // แล้วเก็บ flash-latest ไว้เป็นตัวสำรอง เผื่อวันไหน lite มีปัญหาบ้าง
   'gemini-flash-lite-latest',
+  'gemini-flash-latest',
 ].filter(Boolean).filter((m, i, a) => a.indexOf(m) === i) // ตัดค่าซ้ำ
 
 const geminiUrl = (model, key) =>
