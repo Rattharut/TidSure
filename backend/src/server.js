@@ -32,18 +32,39 @@ const PORT = process.env.PORT || 5000
 // เผื่อไว้ให้ทดสอบจากเครื่อง (localhost) กับเว็บจริง (Vercel) ใช้ backend ตัวเดียวกันได้
 //
 // ค่าเริ่มต้น = localhost:5173 (ตอนพัฒนา) ถ้าไม่ได้ตั้ง env
+//
+// ⭐ ใส่ * ได้ด้วย เพื่อครอบคลุมลิงก์พรีวิวของ Vercel
+//   ทุกครั้งที่ push ขึ้น GitHub, Vercel จะสร้าง URL พรีวิวใหม่ให้ เช่น
+//     https://tid-sure-git-main-xxxx.vercel.app
+//   ถ้าเผลอเปิดเว็บจากลิงก์พวกนี้ (กดจากหน้า dashboard ของ Vercel) แล้วไม่ได้อนุญาตไว้
+//   เบราว์เซอร์จะบล็อกทุก request แล้วหน้าเว็บขึ้นว่า "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้"
+//   ทั้งที่ backend ทำงานปกติดี — ตั้งเป็น https://tid-sure-*.vercel.app จะครอบคลุมให้หมด
 const allowedOrigins = (process.env.CLIENT_ORIGIN || 'http://localhost:5173')
   .split(',')
   .map((o) => o.trim())
   .filter(Boolean)
 
+// แปลงรายการข้างบนเป็นตัวตรวจ: ตัวไหนมี * ให้เทียบแบบ pattern ที่เหลือเทียบตรงตัว
+// (escape อักขระพิเศษก่อน แล้วค่อยเปลี่ยน * เป็น "ตัวอะไรก็ได้ที่ไม่ใช่จุด/ทับ")
+const originMatchers = allowedOrigins.map((o) => {
+  if (!o.includes('*')) return (origin) => origin === o
+  const re = new RegExp('^' + o.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\*/g, '[^./]*') + '$')
+  return (origin) => re.test(origin)
+})
+
 app.use(cors({
   origin(origin, callback) {
     // ไม่มี origin (เช่นเรียกจาก Postman / health check ของ Render) -> อนุญาต
-    // หรือ origin อยู่ในรายชื่อที่ไว้ใจ -> อนุญาต
-    if (!origin || allowedOrigins.includes(origin)) return callback(null, true)
-    // origin แปลกปลอม -> ปฏิเสธ (กันเว็บอื่นแอบเรียก API เรา)
-    return callback(new Error('ไม่อนุญาตให้ origin นี้เรียก API'))
+    // หรือ origin ตรงกับรายชื่อที่ไว้ใจ -> อนุญาต
+    if (!origin || originMatchers.some((match) => match(origin))) return callback(null, true)
+
+    // origin แปลกปลอม -> ไม่ใส่ header CORS ให้ (เบราว์เซอร์จะบล็อกเอง)
+    //
+    // สำคัญ: ห้าม callback(new Error(...)) เพราะจะกลายเป็น HTTP 500
+    // ซึ่งทำให้ดูเหมือน "เซิร์ฟเวอร์พัง" ทั้งที่จริงแค่ origin ไม่ได้รับอนุญาต
+    // ตอบแบบนี้ปลอดภัยเท่ากัน (ไม่มี header = เบราว์เซอร์ไม่ยอมให้อ่านผล) แต่หาสาเหตุง่ายกว่ามาก
+    console.warn('ปฏิเสธ origin ที่ไม่อยู่ในรายชื่อ:', origin, '| ที่อนุญาต:', allowedOrigins.join(', '))
+    return callback(null, false)
   },
 }))
 // express.json: อ่าน body ที่เป็น JSON จาก request ให้อัตโนมัติ (req.body)
